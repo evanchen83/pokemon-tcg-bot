@@ -12,16 +12,44 @@ CardInfo = namedtuple("CardInfo", ["title", "url"])
 
 PACK_RARITY_COMMON = "common"
 PACK_RARITY_UNCOMMON = "uncommon"
-PACK_RARITY_RARE = (
-    "rare,rare-holo,promo,ultra-rare,rainbow-rare,rare-secret,"
-    "shiny-rare,holo-rare-v,rare-holo-ex-↑,rare-holo-gx,rare-holo-ex-↓,"
-    "illustration-rare,double-rare,holo-rare-vmax,trainer-gallery-holo-rare,"
-    "special-illustration-rare,rare-holo-lv-x,trainer-gallery-holo-rare-v,"
-    "rare-shiny-gx,hyper-rare,holo-rare-vstar,trainer-gallery-ultra-rare,"
-    "rare-prism-star,rare-break,rare-prime,rare-holo-star,"
-    "legend,shiny-rare-v-or-vmax,rare-shining,radiant-rare,rare-ace,"
-    "trainer-gallery-secret-rare,shiny-ultra-rare,"
-    "trainer-gallery-holo-rare-v-or-vmax,amazing-rare"
+PACK_RARITY_RARE = ",".join(
+    [
+        "rare",
+        "rare-holo",
+        "promo",
+        "ultra-rare",
+        "rainbow-rare",
+        "rare-secret",
+        "shiny-rare",
+        "holo-rare-v",
+        "rare-holo-ex-↑",
+        "rare-holo-gx",
+        "rare-holo-ex-↓",
+        "illustration-rare",
+        "double-rare",
+        "holo-rare-vmax",
+        "trainer-gallery-holo-rare",
+        "special-illustration-rare",
+        "rare-holo-lv-x",
+        "trainer-gallery-holo-rare-v",
+        "rare-shiny-gx",
+        "hyper-rare",
+        "holo-rare-vstar",
+        "trainer-gallery-ultra-rare",
+        "rare-prism-star",
+        "rare-break",
+        "rare-prime",
+        "rare-holo-star",
+        "legend",
+        "shiny-rare-v-or-vmax",
+        "rare-shining",
+        "radiant-rare",
+        "rare-ace",
+        "trainer-gallery-secret-rare",
+        "shiny-ultra-rare",
+        "trainer-gallery-holo-rare-v-or-vmax",
+        "amazing-rare",
+    ]
 )
 
 PACK_RARITY_COUNTS = {
