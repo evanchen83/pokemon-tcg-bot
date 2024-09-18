@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from discord.ext import commands
 from reactionmenu import ViewButton, ViewMenu
 
-CardInfo = namedtuple("CardInfo", ["title", "url"])
+PkmnCard = namedtuple("CardInfo", ["title", "url"])
 
 PACK_RARITY_COMMON = "common"
 PACK_RARITY_UNCOMMON = "uncommon"
@@ -95,14 +95,14 @@ class PkmnCards(commands.Cog):
         card_infos = []
         if len(cards) == 1:  # single card gallery
             card_infos.append(
-                CardInfo(
+                PkmnCard(
                     cards[0].find("h2", {"class": "card-title"}).text,
                     cards[0].find("img")["src"],
                 )
             )
         else:
             for card in cards:
-                card_infos.append(CardInfo(card.a["title"], card.a.img["src"]))
+                card_infos.append(PkmnCard(card.a["title"], card.a.img["src"]))
 
         return card_infos
 

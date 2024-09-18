@@ -11,7 +11,7 @@ import numpy as np
 from discord.ext import commands
 
 
-class PlayerData(NamedTuple):
+class Player(NamedTuple):
     player: discord.Member
     color_id: int
 
@@ -136,7 +136,7 @@ class Connect4(commands.Cog):
         if not await self._request_challenge(ctx, opponent):
             return
 
-        players = deque([PlayerData(ctx.author, 1), PlayerData(opponent, 2)])
+        players = deque([Player(ctx.author, 1), Player(opponent, 2)])
 
         board = np.zeros((6, 7))
         peeks = np.zeros(7)
