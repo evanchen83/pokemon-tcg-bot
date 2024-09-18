@@ -2,6 +2,7 @@ import os
 
 import discord
 from discord.ext import commands
+from dotenv import load_dotenv
 
 from cogs.connect4 import Connect4
 from cogs.pkmncards import PkmnCards
