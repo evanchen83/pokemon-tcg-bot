@@ -1,6 +1,6 @@
 import random
-from collections import namedtuple
 from functools import lru_cache
+from typing import NamedTuple
 
 import discord
 import requests
@@ -8,7 +8,11 @@ from bs4 import BeautifulSoup
 from discord.ext import commands
 from reactionmenu import ViewButton, ViewMenu
 
-PkmnCard = namedtuple("CardInfo", ["title", "url"])
+
+class PkmnCard(NamedTuple):
+    title: str
+    url: str
+
 
 PACK_RARITY_COMMON = "common"
 PACK_RARITY_UNCOMMON = "uncommon"
