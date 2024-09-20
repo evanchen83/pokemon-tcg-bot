@@ -9,6 +9,7 @@ COPY pyproject.toml poetry.lock /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --no-dev --no-interaction --no-ansi
 
-COPY . /app
+COPY ./bot /app/bot
 
-CMD ["python", "bot.py"]
+WORKDIR /app/bot
+CMD ["python", "start_bot.py"]

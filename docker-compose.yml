@@ -6,9 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./app:/app
-    working_dir: /app
-    command: ["python", "bot.py"]
+      - ./bot:/app/bot
     env_file:
       - .env
     image: pokemon-tcg-bot
