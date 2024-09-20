@@ -1,14 +1,13 @@
 import os
 
 import discord
-from discord.ext import commands
-from dotenv import load_dotenv
-
 from cogs.connect4 import Connect4
 from cogs.pkmncards import PkmnCards
 from cogs.poke2spy import Poke2Spy
 from cogs.tetris import Tetris
 from cogs.wordle import Wordle
+from discord.ext import commands
+from dotenv import load_dotenv
 
 load_dotenv()
 

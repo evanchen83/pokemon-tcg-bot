@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  pokemon-tcg-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/app
+    working_dir: /app
+    command: ["python", "bot.py"]
+    env_file:
+      - .env
+    image: pokemon-tcg-bot
+    container_name: pokemon-tcg-bot
