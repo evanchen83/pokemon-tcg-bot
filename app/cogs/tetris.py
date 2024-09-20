@@ -128,7 +128,7 @@ def make_grid_embed(grid, piece, score):
     for r in overlay_grid[3:]:
         grid_str += "".join(r) + "\n"
 
-    return discord.Embed(title=f"TETRIS. Score: {score}", description=grid_str)
+    return discord.Embed(title=f"TETRIS\nScore: {score}", description=grid_str)
 
 
 player_moves_by_game = defaultdict(deque)
