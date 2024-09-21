@@ -98,7 +98,7 @@ def _get_player_cards_from_db(session, discord_id, text_filter=None):
     if text_filter:
         query = query.filter(PlayerCard.card_name.ilike(f"%{text_filter}%"))
 
-    player_cards = query.all()
+    player_cards = query.with_for_update().all()
     return [
         PlayerPkmnCard(
             title=card.card_name, url=card.card_image_url, copies=card.copies
@@ -272,6 +272,19 @@ class PkmnCards(commands.Cog):
         self, ctx, player: discord.Member, source_card_name, target_card_name
     ):
         """Exchange cards between players."""
+        request_embed = (
+            discord.Embed(
+                title=f"{player.name.capitalize()}, you have a trade proposal:"
+            )
+            .add_field(name=f"{ctx.author.name}", value=source_card_name, inline=True)
+            .add_field(name=f"{player.name}", value=target_card_name, inline=True)
+            .set_footer(text="React with 👍 to accept or 👎 to decline.")
+        )
+        if not await confirm_msg.request_confirm_message(
+            ctx, self.bot, player, request_embed
+        ):
+            return
+
         with Session() as session, session.begin():
             source_cards = _get_player_cards_from_db(
                 session, str(ctx.author.id), source_card_name
@@ -282,26 +295,11 @@ class PkmnCards(commands.Cog):
                 session, str(player.id), target_card_name
             )
             target_card = target_cards[0] if target_cards else None
+            if not source_card or not target_card:
+                return await ctx.reply(
+                    "Both players must own the specified cards to complete the trade"
+                )
 
-        if not source_card or not target_card:
-            return await ctx.reply(
-                "Both players must own the specified cards to complete the trade"
-            )
-
-        request_embed = (
-            discord.Embed(
-                title=f"{player.name.capitalize()}, you have a trade proposal:"
-            )
-            .add_field(name=f"{ctx.author.name}", value=source_card.title, inline=True)
-            .add_field(name=f"{player.name}", value=target_card.title, inline=True)
-            .set_footer(text="React with 👍 to accept or 👎 to decline.")
-        )
-        if not await confirm_msg.request_confirm_message(
-            ctx, self.bot, player, request_embed
-        ):
-            return
-
-        with Session() as session, session.begin():
             _remove_player_card_from_db(session, str(ctx.author.id), source_card.title)
             _add_player_card_to_db(
                 session, str(player.id), source_card.title, source_card.url
