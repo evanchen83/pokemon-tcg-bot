@@ -206,7 +206,7 @@ class PkmnCards(commands.Cog):
         card_infos = []
 
         for rarity, count in PACK_RARITY_COUNTS.items():
-            rarity_card_info = self._query_card_info(f"set%3A{set}+rarity%3A{rarity}")
+            rarity_card_info = self._scrape_card_info(f"set%3A{set}+rarity%3A{rarity}")
 
             if len(rarity_card_info) < count:
                 return await ctx.reply("Unable to generate pack")
