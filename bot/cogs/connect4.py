@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from discord.ext import commands
 
+from bot.utils import confirm_msg
+
 
 class Player(NamedTuple):
     player: discord.Member
@@ -20,7 +22,7 @@ BOARD_COLORS = {0: "white", 1: "red", 2: "yellow"}
 
 
 def _draw_board(board: list[list[int]]) -> bytes:
-    img = mpimg.imread("data/connect4_board.jpg")
+    img = mpimg.imread("bot/data/connect4_board.jpg")
     fig, ax = plt.subplots()
 
     ax.imshow(img)
@@ -77,37 +79,6 @@ class Connect4(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def _request_challenge(self, ctx, opponent):
-        message = await ctx.send(
-            f"{opponent.mention}, you have been challenged! React with 👍 to accept or 👎 to decline."
-        )
-
-        await message.add_reaction("👍")
-        await message.add_reaction("👎")
-
-        def check(reaction, user):
-            return (
-                user == opponent
-                and str(reaction.emoji) in ["👍", "👎"]
-                and reaction.message.id == message.id
-            )
-
-        try:
-            reaction, user = await self.bot.wait_for(
-                "reaction_add", timeout=60.0, check=check
-            )
-
-            if str(reaction.emoji) == "👍":
-                await ctx.send(f"{opponent.name.capitalize()} accepted the request!")
-                return True
-            elif str(reaction.emoji) == "👎":
-                await ctx.send(f"{opponent.name.capitalize()} declined the request.")
-                return False
-
-        except TimeoutError:
-            await ctx.send(f"{opponent.name.capitalize()} did not respond in time.")
-            return False
-
     async def _get_valid_move(self, ctx, player_id, peeks):
         async def notify_invalid():
             await ctx.send("Not a valid move.")
@@ -131,9 +102,19 @@ class Connect4(commands.Cog):
         return int(msg.content) - 1
 
     @commands.command()
-    async def connect4_play(self, ctx, opponent: discord.User):
+    async def play_connect4(self, ctx, opponent: discord.User):
         "Play a game of Connect 4 with your friends."
-        if not await self._request_challenge(ctx, opponent):
+        challenge_embed = (
+            discord.Embed(
+                title=f"{opponent.name.capitalize()}, you have been challenged to a Connect 4 game!"
+            )
+            .add_field(name="Challenger:", value=f"{ctx.author.name}", inline=True)
+            .add_field(name="Opponent:", value=f"{opponent.name}", inline=True)
+            .set_footer(text="React with 👍 to accept or 👎 to decline the challenge.")
+        )
+        if not await confirm_msg.request_confirm_message(
+            ctx, self.bot, opponent, challenge_embed
+        ):
             return
 
         players = deque([Player(ctx.author, 1), Player(opponent, 2)])

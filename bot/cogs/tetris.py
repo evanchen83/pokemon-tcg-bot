@@ -147,7 +147,7 @@ class Tetris(commands.Cog):
         await reaction.message.remove_reaction(reaction.emoji, user)
 
     @commands.command()
-    async def tetris_play(self, ctx):
+    async def play_tetris(self, ctx):
         """Play a classic game of Tetris."""
         current_piece = copy.deepcopy(random.choice(PIECES))
         grid = np.full((22, 10), "⬛")

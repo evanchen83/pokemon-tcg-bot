@@ -5,7 +5,7 @@ from pathlib import Path
 import discord
 from discord.ext import commands
 
-all_words = Path("./data/valid_wordle_words.txt").read_text().split("\n")
+all_words = Path("bot/data/valid_wordle_words.txt").read_text().split("\n")
 target = random.choice(all_words)
 
 
@@ -52,7 +52,7 @@ class Wordle(commands.Cog):
         return guess.content.lower()
 
     @commands.command()
-    async def wordle_refresh(self, ctx):
+    async def refresh_wordle_answer(self, ctx):
         """Refresh the Wordle game for new challenges."""
         global target
         target = random.choice(all_words)
@@ -60,12 +60,12 @@ class Wordle(commands.Cog):
 
     @commands.command()
     @commands.is_owner()
-    async def wordle_answer(self, ctx):
+    async def show_worlde_answer(self, ctx):
         """Reveal the answer to the current Wordle game."""
         await ctx.reply(f"Wordle answer: {target}")
 
     @commands.command()
-    async def wordle_play(self, ctx):
+    async def play_wordle(self, ctx):
         """Start a new game of Wordle."""
         chances = 5
         guesses = []

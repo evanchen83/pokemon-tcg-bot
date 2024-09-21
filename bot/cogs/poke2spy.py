@@ -12,7 +12,7 @@ from rembg import new_session, remove
 
 
 def _get_pokemon_hashes() -> Dict[imagehash.ImageMultiHash, str]:
-    df = pd.read_csv("./data/pokemon_hashes.csv")
+    df = pd.read_csv("bot/data/pokemon_hashes.csv")
     pokemon_names = df["pokemon_names"].to_list()
     img_front_hashes = (
         df["img_front_large_crop_hashes"].apply(imagehash.hex_to_multihash).to_list()
