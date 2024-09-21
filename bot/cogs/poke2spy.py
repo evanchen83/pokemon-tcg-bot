@@ -35,10 +35,8 @@ def _is_encounter_msg(msg: discord.Message) -> bool:
     )
 
 
-def _predict_encounter_pokemon(encounter_msg: discord.Message) -> str:
-    encounter_img = Image.open(
-        BytesIO(requests.get(encounter_msg.embeds[0].image.url).content)
-    )
+def _predict_encounter_pokemon(image_bytes: BytesIO) -> str:
+    encounter_img = Image.open(image_bytes)
     encounter_img = remove(encounter_img, session=session)
     encounter_img = encounter_img.crop(encounter_img.getbbox()).resize((500, 500))
 
@@ -59,7 +57,9 @@ class Poke2Spy(commands.Cog):
     async def on_message(self, msg):
         if _is_encounter_msg(msg):
             st = time.perf_counter()
-            prediction = _predict_encounter_pokemon(msg)
+            prediction = _predict_encounter_pokemon(
+                BytesIO(requests.get(msg.embeds[0].image.url).content)
+            )
             et = time.perf_counter()
             await msg.reply(f"{prediction.capitalize()} - {et-st:.4} seconds.")
 
@@ -71,6 +71,8 @@ class Poke2Spy(commands.Cog):
         ):
             return await ctx.reply("Msg is not a PokeTwo encounter!")
         st = time.perf_counter()
-        prediction = _predict_encounter_pokemon(msg)
+        prediction = _predict_encounter_pokemon(
+            BytesIO(requests.get(msg.embeds[0].image.url).content)
+        )
         et = time.perf_counter()
         await ctx.reply(f"{prediction.capitalize()} - {et-st:.4} seconds.")
