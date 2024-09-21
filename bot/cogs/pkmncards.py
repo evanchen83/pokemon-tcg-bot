@@ -92,11 +92,11 @@ def _add_player_card_to_db(session, discord_id, card_name, card_image_url):
         session.add(new_card)
 
 
-def _get_player_cards_from_db(session, discord_id, text_filter=None):
+def _search_player_cards_from_db(session, discord_id, text_filter):
     query = session.query(PlayerCard).filter_by(discord_id=discord_id)
 
     if text_filter:
-        query = query.filter(PlayerCard.card_name.ilike(f"%{text_filter}%"))
+        query = query.filter(PlayerCard.card_name.ilike(text_filter))
 
     player_cards = query.with_for_update().all()
     return [
@@ -105,6 +105,12 @@ def _get_player_cards_from_db(session, discord_id, text_filter=None):
         )
         for card in player_cards
     ]
+
+
+def _get_player_card_from_db(session, discord_id, card_name):
+    return next(
+        iter(_search_player_cards_from_db(session, discord_id, card_name)), None
+    )
 
 
 def _remove_player_card_from_db(session, discord_id, card_name):
@@ -230,9 +236,11 @@ class PkmnCards(commands.Cog):
     @commands.command()
     async def show_player_cards(self, ctx, player: discord.Member, text_filter=None):
         """Show cards held by the player."""
+        text_filter = f"%{text_filter}%" if text_filter else None
+
         with Session() as session, session.begin():
-            player_cards = _get_player_cards_from_db(
-                session, str(player.id), text_filter=text_filter
+            player_cards = _search_player_cards_from_db(
+                session, str(player.id), text_filter
             )
 
         if not player_cards:
@@ -272,6 +280,19 @@ class PkmnCards(commands.Cog):
         self, ctx, player: discord.Member, source_card_name, target_card_name
     ):
         """Exchange cards between players."""
+        with Session() as session, session.begin():
+            source_card = _get_player_card_from_db(
+                session, str(ctx.author.id), source_card_name
+            )
+            target_card = _get_player_card_from_db(
+                session, str(player.id), target_card_name
+            )
+
+        if not source_card or not target_card:
+            return await ctx.reply(
+                "Both players must own the specified cards to complete the trade"
+            )
+
         request_embed = (
             discord.Embed(
                 title=f"{player.name.capitalize()}, you have a trade proposal:"
@@ -286,15 +307,13 @@ class PkmnCards(commands.Cog):
             return
 
         with Session() as session, session.begin():
-            source_cards = _get_player_cards_from_db(
+            source_card = _get_player_card_from_db(
                 session, str(ctx.author.id), source_card_name
             )
-            source_card = source_cards[0] if source_cards else None
-
-            target_cards = _get_player_cards_from_db(
+            target_card = _get_player_card_from_db(
                 session, str(player.id), target_card_name
             )
-            target_card = target_cards[0] if target_cards else None
+
             if not source_card or not target_card:
                 return await ctx.reply(
                     "Both players must own the specified cards to complete the trade"
@@ -310,4 +329,4 @@ class PkmnCards(commands.Cog):
                 session, str(ctx.author.id), target_card.title, target_card.url
             )
 
-        await ctx.reply("Trade completed successfully.")
+            await ctx.reply("Trade completed successfully.")
