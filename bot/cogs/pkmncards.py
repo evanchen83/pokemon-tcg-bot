@@ -18,11 +18,6 @@ class PkmnCard:
     url: str
 
 
-@dataclass
-class PlayerPkmnCard(PkmnCard):
-    copies: int
-
-
 PACK_COUNT_BY_RARITY = {
     "rarity%3Acommon": 4,
     "rarity%3Auncommon": 3,
@@ -39,13 +34,13 @@ def _add_player_card_to_db(session, discord_id, card_name, card_image_url):
     )
 
     if player_card:
-        player_card.copies += 1
+        player_card.count += 1
     else:
         new_card = PlayerCard(
             discord_id=discord_id,
             card_name=card_name,
             card_image_url=card_image_url,
-            copies=1,
+            count=1,
         )
         session.add(new_card)
 
@@ -56,18 +51,14 @@ def _search_player_cards_from_db(session, discord_id, text_filter):
     if text_filter:
         query = query.filter(PlayerCard.card_name.ilike(text_filter))
 
-    player_cards = query.with_for_update().all()
-    return [
-        PlayerPkmnCard(
-            title=card.card_name, url=card.card_image_url, copies=card.copies
-        )
-        for card in player_cards
-    ]
+    return query.all()
 
 
 def _get_player_card_from_db(session, discord_id, card_name):
-    return next(
-        iter(_search_player_cards_from_db(session, discord_id, card_name)), None
+    return (
+        session.query(PlayerCard)
+        .filter_by(discord_id=discord_id, card_name=card_name)
+        .one_or_none()
     )
 
 
@@ -84,12 +75,18 @@ def _remove_player_card_from_db(session, discord_id, card_name):
         removed_card = PkmnCard(
             title=player_card.card_name, url=player_card.card_image_url
         )
-        if player_card.copies > 1:
-            player_card.copies -= 1
+        if player_card.count > 1:
+            player_card.count -= 1
         else:
             session.delete(player_card)
 
     return removed_card
+
+
+def _lock_player_card_in_db(session, discord_id, card_name):
+    session.query(PlayerCard).filter_by(
+        discord_id=discord_id, card_name=card_name
+    ).with_for_update().all()
 
 
 class PkmnCards(commands.Cog):
@@ -201,19 +198,19 @@ class PkmnCards(commands.Cog):
                 session, str(player.id), text_filter
             )
 
-        if not player_cards:
-            return await ctx.reply("Player has no cards")
+            if not player_cards:
+                return await ctx.reply("Player has no cards")
 
-        menu = ViewMenu(ctx, menu_type=ViewMenu.TypeEmbed)
-        for card in player_cards:
-            menu.add_page(
-                discord.Embed(title=card.title)
-                .set_image(url=card.url)
-                .add_field(name="copies", value=card.copies)
-            )
+            menu = ViewMenu(ctx, menu_type=ViewMenu.TypeEmbed)
+            for card in player_cards:
+                menu.add_page(
+                    discord.Embed(title=card.card_name)
+                    .set_image(url=card.card_image_url)
+                    .add_field(name="count", value=card.count)
+                )
 
-        menu.add_button(ViewButton.back())
-        menu.add_button(ViewButton.next())
+            menu.add_button(ViewButton.back())
+            menu.add_button(ViewButton.next())
 
         await menu.start()
 
@@ -265,6 +262,9 @@ class PkmnCards(commands.Cog):
             return
 
         with Session() as session, session.begin():
+            _lock_player_card_in_db(session, str(ctx.author.id), source_card_name)
+            _lock_player_card_in_db(session, str(player.id), target_card_name)
+
             source_card = _get_player_card_from_db(
                 session, str(ctx.author.id), source_card_name
             )
@@ -277,14 +277,22 @@ class PkmnCards(commands.Cog):
                     "Both players must own the specified cards to complete the trade"
                 )
 
-            _remove_player_card_from_db(session, str(ctx.author.id), source_card.title)
+            _remove_player_card_from_db(
+                session, str(ctx.author.id), source_card.card_name
+            )
             _add_player_card_to_db(
-                session, str(player.id), source_card.title, source_card.url
+                session,
+                str(player.id),
+                source_card.card_name,
+                source_card.card_image_url,
             )
 
-            _remove_player_card_from_db(session, str(player.id), target_card.title)
+            _remove_player_card_from_db(session, str(player.id), target_card.card_name)
             _add_player_card_to_db(
-                session, str(ctx.author.id), target_card.title, target_card.url
+                session,
+                str(ctx.author.id),
+                target_card.card_name,
+                target_card.card_image_url,
             )
 
             await ctx.reply("Trade completed successfully.")

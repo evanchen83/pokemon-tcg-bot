@@ -16,7 +16,7 @@ class PlayerCard(Base):
     discord_id = Column(String, nullable=False)
     card_name = Column(String, nullable=False)
     card_image_url = Column(String, nullable=False)
-    copies = Column(Integer, default=0)
+    count = Column(Integer, default=0)
 
     __table_args__ = (PrimaryKeyConstraint("discord_id", "card_name"),)
 
