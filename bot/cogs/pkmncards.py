@@ -275,3 +275,12 @@ class PkmnCards(commands.Cog):
             )
 
             await ctx.reply("Trade completed successfully.")
+
+    @commands.command()
+    async def remove_cards(self, ctx, user: discord.Member):
+        """Remove all cards held by a player."""
+        with Session() as session, session.begin():
+            session.query(PlayerCards).filter(
+                PlayerCards.discord_id == str(user.id)
+            ).delete(synchronize_session=False)
+        await ctx.reply(f"Removed all of {user.name.capitalize()}'s cards!")
