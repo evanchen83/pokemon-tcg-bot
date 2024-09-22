@@ -280,7 +280,7 @@ class PkmnCards(commands.Cog):
     async def remove_cards(self, ctx, user: discord.Member):
         """Remove all cards held by a player."""
         with Session() as session, session.begin():
-            session.query(PlayerCards).filter(
-                PlayerCards.discord_id == str(user.id)
-            ).delete(synchronize_session=False)
+            session.query(PlayerCards).filter_by(discord_id=str(user.id)).delete(
+                synchronize_session=False
+            )
         await ctx.reply(f"Removed all of {user.name.capitalize()}'s cards!")
