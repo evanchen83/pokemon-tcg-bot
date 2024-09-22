@@ -109,7 +109,7 @@ class PkmnCards(commands.Cog):
         await menu.start()
 
     @commands.command()
-    async def open_pack(self, ctx, set):
+    async def open_booster(self, ctx, set):
         """Open a booster pack and get new Pokémon game cards."""
         menu = ViewMenu(ctx, menu_type=ViewMenu.TypeEmbed)
         card_infos = []
@@ -142,7 +142,7 @@ class PkmnCards(commands.Cog):
         await menu.start()
 
     @commands.command()
-    async def show_player_cards(self, ctx, user: discord.Member, text_filter=None):
+    async def show_cards(self, ctx, user: discord.Member, text_filter=None):
         """Show cards held by the player."""
         text_filter = f"%{text_filter}%" if text_filter else None
 
@@ -171,7 +171,7 @@ class PkmnCards(commands.Cog):
         await menu.start()
 
     @commands.command()
-    async def gift_player_card(self, ctx, user: discord.Member, card_name):
+    async def gift_card(self, ctx, user: discord.Member, card_name):
         """Gift a player one of your cards."""
         with Session() as session, session.begin():
             source_card = (
@@ -203,7 +203,7 @@ class PkmnCards(commands.Cog):
             )
 
     @commands.command()
-    async def trade_player_card(
+    async def trade_card(
         self, ctx, user: discord.Member, source_card_name, target_card_name
     ):
         """Exchange cards between players."""

@@ -8,7 +8,6 @@ async def request_confirm_message(ctx, bot, user, embed):
             _user == user
             and str(reaction.emoji) in ["👍", "👎"]
             and reaction.message.id == message.id
-            or True
         )
 
     try:
