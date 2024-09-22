@@ -1,4 +1,4 @@
-changeLogFile: changelog/db.changelog-master.yaml
+changeLogFile: liquibase/changelog/db.changelog-master.yaml
 
 url: jdbc:postgresql://localhost:5432/YOUR_DATABASE
 username: YOUR_USERNAME
