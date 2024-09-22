@@ -10,7 +10,7 @@ engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
 Base = declarative_base()
 
 
-class PlayerCard(Base):
+class PlayerCards(Base):
     __tablename__ = "player_cards"
 
     discord_id = Column(String, nullable=False)

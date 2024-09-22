@@ -7,8 +7,9 @@ import requests
 from bs4 import BeautifulSoup
 from discord.ext import commands
 from reactionmenu import ViewButton, ViewMenu
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from bot.database import PlayerCard, Session
+from bot.database import PlayerCards, Session
 from bot.utils import confirm_msg
 
 
@@ -25,68 +26,15 @@ PACK_COUNT_BY_RARITY = {
 }
 
 
-def _add_player_card_to_db(session, discord_id, card_name, card_image_url):
-    player_card = (
-        session.query(PlayerCard)
-        .filter_by(discord_id=discord_id, card_name=card_name)
-        .with_for_update()
-        .first()
+def _add_or_increment_player_card(session, user_id, card_name, card_image_url):
+    stmt = pg_insert(PlayerCards).values(
+        discord_id=user_id, card_name=card_name, card_image_url=card_image_url, count=1
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="player_cards_pkey", set_={"count": PlayerCards.count + 1}
     )
 
-    if player_card:
-        player_card.count += 1
-    else:
-        new_card = PlayerCard(
-            discord_id=discord_id,
-            card_name=card_name,
-            card_image_url=card_image_url,
-            count=1,
-        )
-        session.add(new_card)
-
-
-def _search_player_cards_from_db(session, discord_id, text_filter):
-    query = session.query(PlayerCard).filter_by(discord_id=discord_id)
-
-    if text_filter:
-        query = query.filter(PlayerCard.card_name.ilike(text_filter))
-
-    return query.all()
-
-
-def _get_player_card_from_db(session, discord_id, card_name):
-    return (
-        session.query(PlayerCard)
-        .filter_by(discord_id=discord_id, card_name=card_name)
-        .one_or_none()
-    )
-
-
-def _remove_player_card_from_db(session, discord_id, card_name):
-    player_card = (
-        session.query(PlayerCard)
-        .filter_by(discord_id=discord_id, card_name=card_name)
-        .with_for_update()
-        .first()
-    )
-    removed_card = None
-
-    if player_card:
-        removed_card = PkmnCard(
-            title=player_card.card_name, url=player_card.card_image_url
-        )
-        if player_card.count > 1:
-            player_card.count -= 1
-        else:
-            session.delete(player_card)
-
-    return removed_card
-
-
-def _lock_player_card_in_db(session, discord_id, card_name):
-    session.query(PlayerCard).filter_by(
-        discord_id=discord_id, card_name=card_name
-    ).with_for_update().all()
+    session.execute(stmt)
 
 
 class PkmnCards(commands.Cog):
@@ -176,7 +124,7 @@ class PkmnCards(commands.Cog):
 
         with Session() as session, session.begin():
             for card_info in card_infos:
-                _add_player_card_to_db(
+                _add_or_increment_player_card(
                     session, str(ctx.author.id), card_info.title, card_info.url
                 )
                 menu.add_page(
@@ -189,14 +137,17 @@ class PkmnCards(commands.Cog):
         await menu.start()
 
     @commands.command()
-    async def show_player_cards(self, ctx, player: discord.Member, text_filter=None):
+    async def show_player_cards(self, ctx, user: discord.Member, text_filter=None):
         """Show cards held by the player."""
         text_filter = f"%{text_filter}%" if text_filter else None
 
         with Session() as session, session.begin():
-            player_cards = _search_player_cards_from_db(
-                session, str(player.id), text_filter
-            )
+            query = session.query(PlayerCards).filter_by(discord_id=str(user.id))
+
+            if text_filter:
+                query = query.filter(PlayerCards.card_name.ilike(text_filter))
+
+            player_cards = query.all()
 
             if not player_cards:
                 return await ctx.reply("Player has no cards")
@@ -215,32 +166,52 @@ class PkmnCards(commands.Cog):
         await menu.start()
 
     @commands.command()
-    async def gift_player_card(self, ctx, player: discord.Member, card_name):
+    async def gift_player_card(self, ctx, user: discord.Member, card_name):
         """Gift a player one of your cards."""
         with Session() as session, session.begin():
-            card = _remove_player_card_from_db(session, str(ctx.author.id), card_name)
+            source_card = (
+                session.query(PlayerCards)
+                .filter_by(discord_id=str(ctx.author.id), card_name=card_name)
+                .with_for_update()
+                .one_or_none()
+            )
 
-            if not card:
+            if not source_card:
                 return await ctx.reply(
                     f"{ctx.author.name.capitalize()} has no card {card_name}"
                 )
 
-            _add_player_card_to_db(session, str(player.id), card.title, card.url)
+            if source_card.count > 1:
+                source_card.count -= 1
+            else:
+                session.delete(source_card)
+
+            _add_or_increment_player_card(
+                session,
+                str(user.id),
+                source_card.card_name,
+                card_image_url=source_card.card_image_url,
+            )
+
             await ctx.reply(
-                f"You have successfully gifted the card {card_name} to {player.name.capitalize()}"
+                f"You have successfully gifted the card {card_name} to {user.name.capitalize()}"
             )
 
     @commands.command()
     async def trade_player_card(
-        self, ctx, player: discord.Member, source_card_name, target_card_name
+        self, ctx, user: discord.Member, source_card_name, target_card_name
     ):
         """Exchange cards between players."""
         with Session() as session, session.begin():
-            source_card = _get_player_card_from_db(
-                session, str(ctx.author.id), source_card_name
+            source_card = (
+                session.query(PlayerCards)
+                .filter_by(discord_id=str(ctx.author.id), card_name=source_card_name)
+                .one_or_none()
             )
-            target_card = _get_player_card_from_db(
-                session, str(player.id), target_card_name
+            target_card = (
+                session.query(PlayerCards)
+                .filter_by(discord_id=str(user.id), card_name=target_card_name)
+                .one_or_none()
             )
 
         if not source_card or not target_card:
@@ -249,27 +220,28 @@ class PkmnCards(commands.Cog):
             )
 
         request_embed = (
-            discord.Embed(
-                title=f"{player.name.capitalize()}, you have a trade proposal:"
-            )
+            discord.Embed(title=f"{user.name.capitalize()}, you have a trade proposal:")
             .add_field(name=f"{ctx.author.name}", value=source_card_name, inline=True)
-            .add_field(name=f"{player.name}", value=target_card_name, inline=True)
+            .add_field(name=f"{user.name}", value=target_card_name, inline=True)
             .set_footer(text="React with 👍 to accept or 👎 to decline.")
         )
         if not await confirm_msg.request_confirm_message(
-            ctx, self.bot, player, request_embed
+            ctx, self.bot, user, request_embed
         ):
             return
 
         with Session() as session, session.begin():
-            _lock_player_card_in_db(session, str(ctx.author.id), source_card_name)
-            _lock_player_card_in_db(session, str(player.id), target_card_name)
-
-            source_card = _get_player_card_from_db(
-                session, str(ctx.author.id), source_card_name
+            source_card = (
+                session.query(PlayerCards)
+                .filter_by(discord_id=str(ctx.author.id), card_name=source_card_name)
+                .with_for_update()
+                .one_or_none()
             )
-            target_card = _get_player_card_from_db(
-                session, str(player.id), target_card_name
+            target_card = (
+                session.query(PlayerCards)
+                .filter_by(discord_id=str(user.id), card_name=target_card_name)
+                .with_for_update()
+                .one_or_none()
             )
 
             if not source_card or not target_card:
@@ -277,22 +249,24 @@ class PkmnCards(commands.Cog):
                     "Both players must own the specified cards to complete the trade"
                 )
 
-            _remove_player_card_from_db(
-                session, str(ctx.author.id), source_card.card_name
-            )
-            _add_player_card_to_db(
-                session,
-                str(player.id),
-                source_card.card_name,
-                source_card.card_image_url,
-            )
+            if source_card.count > 1:
+                source_card.count -= 1
+            else:
+                session.delete(source_card)
 
-            _remove_player_card_from_db(session, str(player.id), target_card.card_name)
-            _add_player_card_to_db(
+            if target_card.count > 1:
+                target_card.count -= 1
+            else:
+                session.delete(target_card)
+
+            _add_or_increment_player_card(
                 session,
                 str(ctx.author.id),
                 target_card.card_name,
                 target_card.card_image_url,
+            )
+            _add_or_increment_player_card(
+                session, str(user.id), source_card.card_name, source_card.card_image_url
             )
 
             await ctx.reply("Trade completed successfully.")
