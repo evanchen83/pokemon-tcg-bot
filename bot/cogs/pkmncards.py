@@ -23,52 +23,10 @@ class PlayerPkmnCard(PkmnCard):
     copies: int
 
 
-PACK_RARITY_COMMON = "common"
-PACK_RARITY_UNCOMMON = "uncommon"
-PACK_RARITY_RARE = ",".join(
-    [
-        "rare",
-        "rare-holo",
-        "promo",
-        "ultra-rare",
-        "rainbow-rare",
-        "rare-secret",
-        "shiny-rare",
-        "holo-rare-v",
-        "rare-holo-ex-↑",
-        "rare-holo-gx",
-        "rare-holo-ex-↓",
-        "illustration-rare",
-        "double-rare",
-        "holo-rare-vmax",
-        "trainer-gallery-holo-rare",
-        "special-illustration-rare",
-        "rare-holo-lv-x",
-        "trainer-gallery-holo-rare-v",
-        "rare-shiny-gx",
-        "hyper-rare",
-        "holo-rare-vstar",
-        "trainer-gallery-ultra-rare",
-        "rare-prism-star",
-        "rare-break",
-        "rare-prime",
-        "rare-holo-star",
-        "legend",
-        "shiny-rare-v-or-vmax",
-        "rare-shining",
-        "radiant-rare",
-        "rare-ace",
-        "trainer-gallery-secret-rare",
-        "shiny-ultra-rare",
-        "trainer-gallery-holo-rare-v-or-vmax",
-        "amazing-rare",
-    ]
-)
-
-PACK_RARITY_COUNTS = {
-    PACK_RARITY_COMMON: 4,
-    PACK_RARITY_UNCOMMON: 3,
-    PACK_RARITY_RARE: 3,
+PACK_COUNT_BY_RARITY = {
+    "rarity%3Acommon": 4,
+    "rarity%3Auncommon": 3,
+    "-rarity%3Acommon,uncommon": 3,
 }
 
 
@@ -211,8 +169,8 @@ class PkmnCards(commands.Cog):
         menu = ViewMenu(ctx, menu_type=ViewMenu.TypeEmbed)
         card_infos = []
 
-        for rarity, count in PACK_RARITY_COUNTS.items():
-            rarity_card_info = self._scrape_card_info(f"set%3A{set}+rarity%3A{rarity}")
+        for rarity, count in PACK_COUNT_BY_RARITY.items():
+            rarity_card_info = self._scrape_card_info(f"set%3A{set}+{rarity}")
 
             if len(rarity_card_info) < count:
                 return await ctx.reply("Unable to generate pack")
