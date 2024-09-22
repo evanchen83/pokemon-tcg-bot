@@ -10,6 +10,10 @@ engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
 Base = declarative_base()
 
 
+class SchemaVersionIncompatibleError(Exception):
+    pass
+
+
 class PlayerCards(Base):
     __tablename__ = "player_cards"
 
@@ -21,6 +25,22 @@ class PlayerCards(Base):
     __table_args__ = (PrimaryKeyConstraint("discord_id", "card_name"),)
 
 
-Base.metadata.create_all(engine)
+class SchemaVersion(Base):
+    __tablename__ = "schema_version"
+
+    version = Column(String(10), nullable=False, primary_key=True)
+
 
 Session = sessionmaker(bind=engine)
+
+
+def _ensure_schema_version_compatibility():
+    with Session() as session, session.begin():
+        actual_schema_version = session.query(SchemaVersion).first().version
+        if actual_schema_version != config.DB_SCHEMA_VERSION:
+            raise SchemaVersionIncompatibleError(
+                f"Expected schema version {config.DB_SCHEMA_VERSION}, but got {actual_schema_version}."
+            )
+
+
+_ensure_schema_version_compatibility()

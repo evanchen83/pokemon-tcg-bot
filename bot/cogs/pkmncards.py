@@ -74,7 +74,7 @@ class PkmnCards(commands.Cog):
             return []
 
         card_infos = []
-        if len(cards) == 1:  # single card gallery
+        if len(cards) == 1:
             card_infos.append(
                 PkmnCard(
                     cards[0].find("h2", {"class": "card-title"}).text,
