@@ -15,8 +15,8 @@ from bot.utils import confirm_msg
 
 @dataclass
 class PkmnCard:
-    title: str
-    url: str
+    name: str
+    image_url: str
 
 
 PACK_COUNT_BY_RARITY = {
@@ -100,7 +100,7 @@ class PkmnCards(commands.Cog):
 
         for card_info in card_infos:
             menu.add_page(
-                discord.Embed(title=card_info.title).set_image(url=card_info.url)
+                discord.Embed(title=card_info.name).set_image(url=card_info.image_url)
             )
 
         menu.add_button(ViewButton.back())
@@ -125,10 +125,15 @@ class PkmnCards(commands.Cog):
         with Session() as session, session.begin():
             for card_info in card_infos:
                 _add_or_increment_player_card(
-                    session, str(ctx.author.id), card_info.title, card_info.url
+                    session,
+                    str(ctx.author.id),
+                    card_info.name,
+                    card_info.image_url,
                 )
                 menu.add_page(
-                    discord.Embed(title=card_info.title).set_image(url=card_info.url)
+                    discord.Embed(title=card_info.name).set_image(
+                        url=card_info.image_url
+                    )
                 )
 
         menu.add_button(ViewButton.back())
