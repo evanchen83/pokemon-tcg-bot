@@ -52,7 +52,7 @@ class Wordle(commands.Cog):
         return guess.content.lower()
 
     @commands.command()
-    async def refresh_wordle_answer(self, ctx):
+    async def refresh_wordle(self, ctx):
         """Refresh the Wordle game for new challenges."""
         global target
         target = random.choice(all_words)
@@ -60,12 +60,12 @@ class Wordle(commands.Cog):
 
     @commands.command()
     @commands.is_owner()
-    async def show_worlde_answer(self, ctx):
+    async def reveal_wordle_answer(self, ctx):
         """Reveal the answer to the current Wordle game."""
         await ctx.reply(f"Wordle answer: {target}")
 
     @commands.command()
-    async def play_wordle(self, ctx):
+    async def new_wordle(self, ctx):
         """Start a new game of Wordle."""
         chances = 5
         guesses = []

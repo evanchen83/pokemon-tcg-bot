@@ -102,7 +102,7 @@ class Connect4(commands.Cog):
         return int(msg.content) - 1
 
     @commands.command()
-    async def play_connect4(self, ctx, opponent: discord.User):
+    async def connect4(self, ctx, opponent: discord.User):
         "Play a game of Connect 4 with your friends."
         challenge_embed = (
             discord.Embed(

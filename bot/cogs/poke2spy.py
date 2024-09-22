@@ -64,7 +64,7 @@ class Poke2Spy(commands.Cog):
             await msg.reply(f"{prediction.capitalize()} - {et-st:.4} seconds.")
 
     @commands.command()
-    async def spy(self, ctx):
+    async def predict_pokemon(self, ctx):
         """Predict the Pokémon name from a PokéTwo encounter."""
         if not ctx.message.reference or not _is_encounter_msg(
             msg := await ctx.channel.fetch_message(ctx.message.reference.message_id)
