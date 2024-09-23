@@ -1,0 +1,5 @@
+changeLogFile: changelog/db.changelog-master.yaml
+
+url: jdbc:postgresql://localhost:5432/dummy_database
+username: dummy_user
+password: dummy_password
