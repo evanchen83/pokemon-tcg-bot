@@ -2,9 +2,9 @@ from sqlalchemy import Column, Integer, PrimaryKeyConstraint, String, create_eng
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from bot import config
+from bot.config import config
 
-DATABASE_URL = f"postgresql://{config.POSTGRES_USER}:{config.POSTGRES_PASSWORD}@postgres:5432/{config.POSTGRES_DB}"
+DATABASE_URL = f"postgresql://{config.postgres_user}:{config.postgres_password}@postgres:5432/{config.postgres_db}"
 
 engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
 Base = declarative_base()
@@ -33,9 +33,9 @@ Session = sessionmaker(bind=engine)
 def _ensure_schema_version_compatibility():
     with Session() as session, session.begin():
         actual_schema_version = session.query(SchemaVersion).first().version
-        if actual_schema_version != config.DB_SCHEMA_VERSION:
+        if actual_schema_version != config.db_schema_version:
             raise Exception(
-                f"Expected schema version {config.DB_SCHEMA_VERSION}, but got {actual_schema_version}."
+                f"Expected schema version {config.db_schema_version}, but got {actual_schema_version}."
             )
 
 

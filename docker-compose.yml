@@ -18,7 +18,8 @@ services:
         condition: service_completed_successfully
 
   liquibase:
-    image: liquibase/liquibase:latest
+    image: liquibase/liquibase:4.23.1
+    container_name: liquibase
     entrypoint: ["liquibase", "--logLevel=info", "update"]
     volumes:
       - ./liquibase/changelog:/liquibase/changelog
@@ -34,7 +35,7 @@ services:
       LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD}
 
   postgres:
-    image: postgres:latest
+    image: postgres:16
     container_name: postgres
     ports:
       - "5432:5432"

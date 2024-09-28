@@ -1,14 +1,15 @@
-import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from dotenv import load_dotenv
 
-load_dotenv()
+class Settings(BaseSettings):
+    owner_id: str
+    discord_token: str
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
+    db_schema_version: str = "1.0.0"
 
-OWNER_ID = os.environ["OWNER_ID"]
-DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
+    model_config = SettingsConfigDict(env_file=".env")
 
-POSTGRES_DB = os.environ["POSTGRES_DB"]
-POSTGRES_USER = os.environ["POSTGRES_USER"]
-POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
 
-DB_SCHEMA_VERSION = "1.0.0"
+config = Settings()

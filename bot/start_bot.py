@@ -1,19 +1,19 @@
 import discord
 from discord.ext import commands
 
-from bot import config
 from bot.cogs.connect4 import Connect4
 from bot.cogs.pkmncards import PkmnCards
 from bot.cogs.poke2spy import Poke2Spy
 from bot.cogs.tetris import Tetris
 from bot.cogs.wordle import Wordle
+from bot.config import config
 
 has_loaded_cogs = False
 
 bot = commands.Bot(
     command_prefix="poketcg ",
     intents=discord.Intents.all(),
-    owner_id=int(config.OWNER_ID),
+    owner_id=int(config.owner_id),
 )
 
 
@@ -32,4 +32,4 @@ async def on_ready():
     has_loaded_cogs = True
 
 
-bot.run(config.DISCORD_TOKEN)
+bot.run(config.discord_token)
