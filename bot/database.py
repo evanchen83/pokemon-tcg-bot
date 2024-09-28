@@ -1,30 +1,34 @@
-from sqlalchemy import Column, Integer, PrimaryKeyConstraint, String, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from bot.config import config
 
 DATABASE_URL = f"postgresql://{config.postgres_user}:{config.postgres_password}@postgres:5432/{config.postgres_db}"
 
-engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
-Base = declarative_base()
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=config.postgres_pool_size,
+    max_overflow=config.postgres_max_overflow,
+)
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class PlayerCards(Base):
     __tablename__ = "player_cards"
 
-    discord_id = Column(String, nullable=False)
-    card_name = Column(String, nullable=False)
+    discord_id = Column(String, primary_key=True, nullable=False)
+    card_name = Column(String, primary_key=True, nullable=False)
     card_image_url = Column(String, nullable=False)
     count = Column(Integer, default=0)
-
-    __table_args__ = (PrimaryKeyConstraint("discord_id", "card_name"),)
 
 
 class SchemaVersion(Base):
     __tablename__ = "schema_version"
 
-    version = Column(String(10), nullable=False, primary_key=True)
+    version = Column(String(10), primary_key=True, nullable=False)
 
 
 Session = sessionmaker(bind=engine)
