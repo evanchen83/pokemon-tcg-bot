@@ -11,6 +11,8 @@ engine = create_engine(
     max_overflow=config.postgres_max_overflow,
 )
 
+Session = sessionmaker(bind=engine)
+
 
 class Base(DeclarativeBase):
     pass
@@ -31,11 +33,8 @@ class SchemaVersion(Base):
     version = Column(String(10), primary_key=True, nullable=False)
 
 
-Session = sessionmaker(bind=engine)
-
-
 def _ensure_schema_version_compatibility():
-    with Session() as session, session.begin():
+    with Session.begin() as session:
         actual_schema_version = session.query(SchemaVersion).first().version
         if actual_schema_version != config.db_schema_version:
             raise Exception(

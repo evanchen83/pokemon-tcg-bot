@@ -122,7 +122,7 @@ class PkmnCards(commands.Cog):
 
             card_infos.extend(random.sample(rarity_card_info, count))
 
-        with Session() as session, session.begin():
+        with Session.begin() as session:
             for card_info in card_infos:
                 _add_or_increment_player_card(
                     session,
@@ -146,7 +146,7 @@ class PkmnCards(commands.Cog):
         """Show cards held by the player."""
         text_filter = f"%{text_filter}%" if text_filter else None
 
-        with Session() as session, session.begin():
+        with Session.begin() as session:
             query = session.query(PlayerCards).filter_by(discord_id=str(user.id))
 
             if text_filter:
@@ -173,7 +173,7 @@ class PkmnCards(commands.Cog):
     @commands.command()
     async def gift_card(self, ctx, user: discord.Member, card_name):
         """Gift a player one of your cards."""
-        with Session() as session, session.begin():
+        with Session.begin() as session:
             source_card = (
                 session.query(PlayerCards)
                 .filter_by(discord_id=str(ctx.author.id), card_name=card_name)
@@ -207,7 +207,7 @@ class PkmnCards(commands.Cog):
         self, ctx, user: discord.Member, source_card_name, target_card_name
     ):
         """Exchange cards between players."""
-        with Session() as session, session.begin():
+        with Session.begin() as session:
             source_card = (
                 session.query(PlayerCards)
                 .filter_by(discord_id=str(ctx.author.id), card_name=source_card_name)
@@ -235,7 +235,7 @@ class PkmnCards(commands.Cog):
         ):
             return
 
-        with Session() as session, session.begin():
+        with Session.begin() as session:
             source_card = (
                 session.query(PlayerCards)
                 .filter_by(discord_id=str(ctx.author.id), card_name=source_card_name)
@@ -279,7 +279,7 @@ class PkmnCards(commands.Cog):
     @commands.command()
     async def remove_cards(self, ctx, user: discord.Member):
         """Remove all cards held by a player."""
-        with Session() as session, session.begin():
+        with Session.begin() as session:
             session.query(PlayerCards).filter_by(discord_id=str(user.id)).delete(
                 synchronize_session=False
             )
