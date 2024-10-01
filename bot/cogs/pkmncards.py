@@ -26,7 +26,7 @@ PACK_COUNT_BY_RARITY = {
 }
 
 
-def _add_or_increment_player_card(session, user_id, card_name, card_image_url):
+def _upsert_player_card(session, user_id, card_name, card_image_url):
     stmt = pg_insert(PlayerCards).values(
         discord_id=user_id, card_name=card_name, card_image_url=card_image_url, count=1
     )
@@ -124,7 +124,7 @@ class PkmnCards(commands.Cog):
 
         with Session.begin() as session:
             for card_info in card_infos:
-                _add_or_increment_player_card(
+                _upsert_player_card(
                     session,
                     str(ctx.author.id),
                     card_info.name,
@@ -191,7 +191,7 @@ class PkmnCards(commands.Cog):
             else:
                 session.delete(source_card)
 
-            _add_or_increment_player_card(
+            _upsert_player_card(
                 session,
                 str(user.id),
                 source_card.card_name,
@@ -264,13 +264,13 @@ class PkmnCards(commands.Cog):
             else:
                 session.delete(target_card)
 
-            _add_or_increment_player_card(
+            _upsert_player_card(
                 session,
                 str(ctx.author.id),
                 target_card.card_name,
                 target_card.card_image_url,
             )
-            _add_or_increment_player_card(
+            _upsert_player_card(
                 session, str(user.id), source_card.card_name, source_card.card_image_url
             )
 
