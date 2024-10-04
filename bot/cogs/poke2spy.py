@@ -1,6 +1,5 @@
 import time
 from io import BytesIO
-from typing import Dict
 
 import discord
 import imagehash
@@ -11,7 +10,7 @@ from PIL import Image
 from rembg import new_session, remove
 
 
-def _get_pokemon_hashes() -> Dict[imagehash.ImageMultiHash, str]:
+def _get_pokemon_hashes() -> dict[imagehash.ImageMultiHash, str]:
     df = pd.read_csv("bot/data/pokemon_hashes.csv")
     pokemon_names = df["pokemon_names"].to_list()
     img_front_hashes = (
