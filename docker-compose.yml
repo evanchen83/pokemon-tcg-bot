@@ -2,9 +2,6 @@ version: '3.8'
 
 services:
   pokemon-tcg-bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: pokemon-tcg-bot
     container_name: pokemon-tcg-bot
     working_dir: /app  
@@ -14,35 +11,39 @@ services:
     env_file:
       - .env
     depends_on:
-      liquibase:
-        condition: service_completed_successfully
-
-  liquibase:
-    image: liquibase/liquibase:4.23.1
-    container_name: liquibase
-    entrypoint: ["liquibase", "--logLevel=info", "update"]
-    volumes:
-      - ./liquibase/changelog:/liquibase/changelog
-    depends_on:
       - postgres
-    restart: "no"
-    env_file:
-      - .env
-    environment:
-      LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog/db.changelog-master.yaml
-      LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER}
-      LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD}
+      - postgres-init
 
   postgres:
     image: postgres:16
     container_name: postgres
     ports:
       - "5432:5432"
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpwd
+      POSTGRES_DB: player_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    env_file:
-      - .env
+      - player_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "sh", "-c", "pg_isready -U testuser -d player_db"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+  postgres-init:
+    image: postgres-init:latest
+    container_name: postgres-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpwd
+      POSTGRES_DB: player_db
+    restart: "no"
 
 volumes:
-  postgres_data:
+  player_data:

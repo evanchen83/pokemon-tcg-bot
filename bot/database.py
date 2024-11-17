@@ -1,14 +1,12 @@
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from bot.config import config
-
-DATABASE_URL = f"postgresql://{config.postgres_user}:{config.postgres_password}@postgres:5432/{config.postgres_db}"
+DATABASE_URL = "postgresql://testuser:testpwd@postgres:5432/player_db"
 
 engine = create_engine(
     DATABASE_URL,
-    pool_size=config.postgres_pool_size,
-    max_overflow=config.postgres_max_overflow,
+    pool_size=10,
+    max_overflow=5,
 )
 
 Session = sessionmaker(bind=engine)
@@ -25,21 +23,3 @@ class PlayerCards(Base):
     card_name = Column(String, primary_key=True, nullable=False)
     card_image_url = Column(String, nullable=False)
     count = Column(Integer, default=0)
-
-
-class SchemaVersion(Base):
-    __tablename__ = "schema_version"
-
-    version = Column(String(10), primary_key=True, nullable=False)
-
-
-def _ensure_schema_version_compatibility():
-    with Session.begin() as session:
-        actual_schema_version = session.query(SchemaVersion).first().version
-        if actual_schema_version != config.db_schema_version:
-            raise Exception(
-                f"Expected schema version {config.db_schema_version}, but got {actual_schema_version}."
-            )
-
-
-_ensure_schema_version_compatibility()
