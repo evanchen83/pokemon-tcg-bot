@@ -15,6 +15,7 @@ from bot.database import PlayerCards, Session
 from bot.utils import confirm_msg
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set logging level to INFO or DEBUG as needed
 
 
 @dataclass
@@ -23,7 +24,7 @@ class PkmnCard:
     image_url: str
 
 
-async def _scrape_set_names():
+def _scrape_set_names():
     page = requests.get("https://pkmncards.com/sets/")
     soup = BeautifulSoup(page.content, "html.parser")
     set_names = []
@@ -34,6 +35,7 @@ async def _scrape_set_names():
             set_name = a["href"][a["href"].rfind("/") + 1 :]
             set_names.append(set_name)
 
+    logger.info(f"Scraped set names: {set_names}")
     return set_names
 
 
@@ -43,7 +45,7 @@ async def _set_name_autocomplete(
 ) -> list[app_commands.Choice]:
     filtered = [
         app_commands.Choice(name=name, value=name)
-        for name in await _scrape_set_names()
+        for name in SET_NAMES
         if current.lower() in name.lower()
     ]
     return filtered[:25]
@@ -94,16 +96,17 @@ def _upsert_player_card(session, user_id, card_name, card_image_url):
     )
 
     session.execute(stmt)
+    logger.info(f"Upserted card '{card_name}' for user {user_id}")
 
 
 @lru_cache()
 def _scrape_card_info(query_str):
     page = requests.get(f"https://pkmncards.com/?s={query_str}")
-
     soup = BeautifulSoup(page.content, "html.parser")
     cards = soup.find_all("div", {"class": "entry-content"})
 
     if not cards:
+        logger.info(f"No cards found for query: {query_str}")
         return []
 
     card_infos = []
@@ -118,9 +121,13 @@ def _scrape_card_info(query_str):
         for card in cards:
             card_infos.append(PkmnCard(card.a["title"], card.a.img["src"]))
 
+    logger.info(
+        f"Scraped card info for query '{query_str}': {[c.name for c in card_infos]}"
+    )
     return card_infos
 
 
+SET_NAMES = _scrape_set_names()
 PACK_COUNT_BY_RARITY = {
     "rarity%3Acommon": 4,
     "rarity%3Auncommon": 3,
@@ -138,12 +145,18 @@ class PokemonTCG(commands.Cog):
         menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
         card_infos = []
 
+        logger.info(f"User {interaction.user} is opening a pack from set: {set}")
+
         for rarity, count in PACK_COUNT_BY_RARITY.items():
             rarity_card_info = _scrape_card_info(f"set%3A{set}+{rarity}")
             if len(rarity_card_info) < count:
                 continue
 
-            card_infos.extend(random.sample(rarity_card_info, count))
+            sampled_cards = random.sample(rarity_card_info, count)
+            card_infos.extend(sampled_cards)
+            logger.info(
+                f"Selected cards for rarity {rarity}: {[c.name for c in sampled_cards]}"
+            )
 
         with Session.begin() as session:
             for card_info in card_infos:
@@ -158,6 +171,10 @@ class PokemonTCG(commands.Cog):
                         url=card_info.image_url
                     )
                 )
+
+        logger.info(
+            f"User {interaction.user} received cards: {[c.name for c in card_infos]}"
+        )
 
         menu.add_button(ViewButton.back())
         menu.add_button(ViewButton.next())
@@ -174,6 +191,7 @@ class PokemonTCG(commands.Cog):
         filter: str = None,
     ):
         target_user = user or interaction.user
+        logger.info(f"User {interaction.user} requested cards for {target_user}")
 
         with Session.begin() as session:
             query = session.query(PlayerCards).filter_by(discord_id=str(target_user.id))
@@ -184,6 +202,9 @@ class PokemonTCG(commands.Cog):
             player_cards = query.all()
 
             if not player_cards:
+                logger.info(
+                    f"User {target_user} has no cards matching the filter '{filter}'"
+                )
                 return await interaction.response.send_message("Player has no cards")
 
             menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
@@ -197,7 +218,10 @@ class PokemonTCG(commands.Cog):
             menu.add_button(ViewButton.back())
             menu.add_button(ViewButton.next())
 
-        await menu.start()
+            logger.info(
+                f"Displayed cards for user {target_user}: {[c.card_name for c in player_cards]}"
+            )
+            await menu.start()
 
     @app_commands.command(
         name="gift_card", description="Gifting a card to someone else."
@@ -209,6 +233,7 @@ class PokemonTCG(commands.Cog):
         user: discord.User,
         card: str,
     ):
+        logger.info(f"User {interaction.user} is gifting card {card} to {user}")
         with Session.begin() as session:
             source_card = (
                 session.query(PlayerCards)
@@ -218,6 +243,9 @@ class PokemonTCG(commands.Cog):
             )
 
             if not source_card:
+                logger.warning(
+                    f"{interaction.user} tried to gift card {card}, but they do not own it."
+                )
                 return await interaction.response.send_message(
                     f"{interaction.user.name.capitalize()} has no card {card}"
                 )
@@ -234,6 +262,7 @@ class PokemonTCG(commands.Cog):
                 card_image_url=source_card.card_image_url,
             )
 
+            logger.info(f"Gifted card {card} from {interaction.user} to {user}")
             await interaction.response.send_message(
                 f"You have successfully gifted the card {card} to {user.name.capitalize()}"
             )
@@ -250,6 +279,10 @@ class PokemonTCG(commands.Cog):
         my_card: str,
         for_card: str,
     ):
+        logger.info(
+            f"User {interaction.user} is proposing a trade with {user}: {my_card} for {for_card}"
+        )
+
         with Session.begin() as session:
             source_card = (
                 session.query(PlayerCards)
@@ -263,6 +296,9 @@ class PokemonTCG(commands.Cog):
             )
 
         if not source_card or not target_card:
+            logger.warning(
+                "Trade failed: one or both users do not own the specified cards."
+            )
             return await interaction.response.send_message(
                 "Both players must own the specified cards to complete the trade"
             )
@@ -277,6 +313,7 @@ class PokemonTCG(commands.Cog):
         if not await confirm_msg.request_confirm_message(
             interaction, self.bot, user, request_embed
         ):
+            logger.info("Trade declined by the other user.")
             return
 
         with Session.begin() as session:
@@ -294,6 +331,9 @@ class PokemonTCG(commands.Cog):
             )
 
             if not source_card or not target_card:
+                logger.warning(
+                    "Trade failed during recheck: one or both users do not own the specified cards."
+                )
                 return await interaction.followup.send(
                     "Both players must own the specified cards to complete the trade"
                 )
@@ -318,4 +358,7 @@ class PokemonTCG(commands.Cog):
                 session, str(user.id), source_card.card_name, source_card.card_image_url
             )
 
+            logger.info(
+                f"Trade completed: {interaction.user} traded {my_card} for {for_card} with {user}"
+            )
             await interaction.followup.send("Trade completed successfully.")
