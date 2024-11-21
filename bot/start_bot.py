@@ -15,10 +15,10 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 @bot.event
 async def on_ready():
-    logger.info(f"Bot is ready as {bot.user}")
+    logger.debug(f"Bot is ready as {bot.user}")
     try:
         synced = await bot.tree.sync()
-        logger.info(f"Synced {len(synced)} command(s)")
+        logger.debug(f"Synced {len(synced)} command(s)")
     except Exception as e:
         logger.error(f"Failed to sync commands: {e}")
 

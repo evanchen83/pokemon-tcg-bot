@@ -5,6 +5,8 @@ from functools import lru_cache
 
 import discord
 import requests
+from aiocache import cached
+from aiocache.serializers import JsonSerializer
 from bs4 import BeautifulSoup
 from discord import app_commands
 from discord.ext import commands
@@ -15,7 +17,13 @@ from bot.database import PlayerCards, Session
 from bot.utils import confirm_msg
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)  # Set logging level to INFO or DEBUG as needed
+logger.setLevel(logging.DEBUG)  # Set logging level to INFO or DEBUG as needed
+
+PACK_COUNT_BY_RARITY = {
+    "rarity%3Acommon": 4,
+    "rarity%3Auncommon": 3,
+    "-rarity%3Acommon,uncommon": 3,
+}
 
 
 @dataclass
@@ -24,7 +32,8 @@ class PkmnCard:
     image_url: str
 
 
-def _scrape_set_names():
+@cached(ttl=3600, serializer=JsonSerializer())
+async def _scrape_set_names():
     page = requests.get("https://pkmncards.com/sets/")
     soup = BeautifulSoup(page.content, "html.parser")
     set_names = []
@@ -35,7 +44,7 @@ def _scrape_set_names():
             set_name = a["href"][a["href"].rfind("/") + 1 :]
             set_names.append(set_name)
 
-    logger.info(f"Scraped set names: {set_names}")
+    logger.debug(f"Scraped set names: {set_names}")
     return set_names
 
 
@@ -45,22 +54,24 @@ async def _set_name_autocomplete(
 ) -> list[app_commands.Choice]:
     filtered = [
         app_commands.Choice(name=name, value=name)
-        for name in SET_NAMES
+        for name in await _scrape_set_names()
         if current.lower() in name.lower()
     ]
     return filtered[:25]
+
+
+@cached(ttl=5)
+async def fetch_user_cards(discord_id: str) -> list[str]:
+    with Session.begin() as session:
+        query = session.query(PlayerCards).filter_by(discord_id=discord_id)
+        return [c.card_name for c in query.all()]
 
 
 async def _source_card_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> list[app_commands.Choice]:
-    with Session.begin() as session:
-        query = session.query(PlayerCards).filter_by(
-            discord_id=str(interaction.user.id)
-        )
-        card_names = [c.card_name for c in query.all()]
-
+    card_names = await fetch_user_cards(str(interaction.user.id))
     filtered = [
         app_commands.Choice(name=name, value=name)
         for name in card_names
@@ -73,12 +84,7 @@ async def _target_card_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> list[app_commands.Choice]:
-    with Session.begin() as session:
-        query = session.query(PlayerCards).filter_by(
-            discord_id=str(interaction.namespace.user.id)
-        )
-        card_names = [c.card_name for c in query.all()]
-
+    card_names = await fetch_user_cards(str(interaction.namespace.user.id))
     filtered = [
         app_commands.Choice(name=name, value=name)
         for name in card_names
@@ -96,17 +102,17 @@ def _upsert_player_card(session, user_id, card_name, card_image_url):
     )
 
     session.execute(stmt)
-    logger.info(f"Upserted card '{card_name}' for user {user_id}")
+    logger.debug(f"Upserted card '{card_name}' for user {user_id}")
 
 
-@lru_cache()
-def _scrape_card_info(query_str):
+@lru_cache(maxsize=1000)
+def _scrape_card_info(query_str: str) -> list[PkmnCard]:
     page = requests.get(f"https://pkmncards.com/?s={query_str}")
     soup = BeautifulSoup(page.content, "html.parser")
     cards = soup.find_all("div", {"class": "entry-content"})
 
     if not cards:
-        logger.info(f"No cards found for query: {query_str}")
+        logger.debug(f"No cards found for query: {query_str}")
         return []
 
     card_infos = []
@@ -121,18 +127,10 @@ def _scrape_card_info(query_str):
         for card in cards:
             card_infos.append(PkmnCard(card.a["title"], card.a.img["src"]))
 
-    logger.info(
+    logger.debug(
         f"Scraped card info for query '{query_str}': {[c.name for c in card_infos]}"
     )
     return card_infos
-
-
-SET_NAMES = _scrape_set_names()
-PACK_COUNT_BY_RARITY = {
-    "rarity%3Acommon": 4,
-    "rarity%3Auncommon": 3,
-    "-rarity%3Acommon,uncommon": 3,
-}
 
 
 class PokemonTCG(commands.Cog):
@@ -145,7 +143,7 @@ class PokemonTCG(commands.Cog):
         menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
         card_infos = []
 
-        logger.info(f"User {interaction.user} is opening a pack from set: {set}")
+        logger.debug(f"User {interaction.user} is opening a pack from set: {set}")
 
         for rarity, count in PACK_COUNT_BY_RARITY.items():
             rarity_card_info = _scrape_card_info(f"set%3A{set}+{rarity}")
@@ -154,7 +152,7 @@ class PokemonTCG(commands.Cog):
 
             sampled_cards = random.sample(rarity_card_info, count)
             card_infos.extend(sampled_cards)
-            logger.info(
+            logger.debug(
                 f"Selected cards for rarity {rarity}: {[c.name for c in sampled_cards]}"
             )
 
@@ -172,7 +170,7 @@ class PokemonTCG(commands.Cog):
                     )
                 )
 
-        logger.info(
+        logger.debug(
             f"User {interaction.user} received cards: {[c.name for c in card_infos]}"
         )
 
@@ -191,7 +189,7 @@ class PokemonTCG(commands.Cog):
         filter: str = None,
     ):
         target_user = user or interaction.user
-        logger.info(f"User {interaction.user} requested cards for {target_user}")
+        logger.debug(f"User {interaction.user} requested cards for {target_user}")
 
         with Session.begin() as session:
             query = session.query(PlayerCards).filter_by(discord_id=str(target_user.id))
@@ -202,7 +200,7 @@ class PokemonTCG(commands.Cog):
             player_cards = query.all()
 
             if not player_cards:
-                logger.info(
+                logger.debug(
                     f"User {target_user} has no cards matching the filter '{filter}'"
                 )
                 return await interaction.response.send_message("Player has no cards")
@@ -218,7 +216,7 @@ class PokemonTCG(commands.Cog):
             menu.add_button(ViewButton.back())
             menu.add_button(ViewButton.next())
 
-            logger.info(
+            logger.debug(
                 f"Displayed cards for user {target_user}: {[c.card_name for c in player_cards]}"
             )
             await menu.start()
@@ -233,7 +231,7 @@ class PokemonTCG(commands.Cog):
         user: discord.User,
         card: str,
     ):
-        logger.info(f"User {interaction.user} is gifting card {card} to {user}")
+        logger.debug(f"User {interaction.user} is gifting card {card} to {user}")
         with Session.begin() as session:
             source_card = (
                 session.query(PlayerCards)
@@ -262,7 +260,7 @@ class PokemonTCG(commands.Cog):
                 card_image_url=source_card.card_image_url,
             )
 
-            logger.info(f"Gifted card {card} from {interaction.user} to {user}")
+            logger.debug(f"Gifted card {card} from {interaction.user} to {user}")
             await interaction.response.send_message(
                 f"You have successfully gifted the card {card} to {user.name.capitalize()}"
             )
@@ -279,7 +277,7 @@ class PokemonTCG(commands.Cog):
         my_card: str,
         for_card: str,
     ):
-        logger.info(
+        logger.debug(
             f"User {interaction.user} is proposing a trade with {user}: {my_card} for {for_card}"
         )
 
@@ -313,7 +311,7 @@ class PokemonTCG(commands.Cog):
         if not await confirm_msg.request_confirm_message(
             interaction, self.bot, user, request_embed
         ):
-            logger.info("Trade declined by the other user.")
+            logger.debug("Trade declined by the other user.")
             return
 
         with Session.begin() as session:
@@ -358,7 +356,7 @@ class PokemonTCG(commands.Cog):
                 session, str(user.id), source_card.card_name, source_card.card_image_url
             )
 
-            logger.info(
+            logger.debug(
                 f"Trade completed: {interaction.user} traded {my_card} for {for_card} with {user}"
             )
             await interaction.followup.send("Trade completed successfully.")
