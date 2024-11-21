@@ -9,7 +9,7 @@ psql -h postgres -U ${POSTGRES_USER} -d postgres -c "CREATE DATABASE ${POSTGRES_
 
 # Set Liquibase environment variables
 export LIQUIBASE_COMMAND_CHANGELOG_FILE=/changelog/db.changelog-master.sql
-export LIQUIBASE_COMMAND_URL=jdbc:postgresql://player-db:5432/${POSTGRES_DB}
+export LIQUIBASE_COMMAND_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
 export LIQUIBASE_COMMAND_USERNAME=${POSTGRES_USER}
 export LIQUIBASE_COMMAND_PASSWORD=${POSTGRES_PASSWORD}
 

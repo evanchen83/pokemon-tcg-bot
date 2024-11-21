@@ -1,35 +1,31 @@
+import logging
+
 import discord
 from discord.ext import commands
 
-from bot.cogs.connect4 import Connect4
-from bot.cogs.pkmncards import PkmnCards
-from bot.cogs.poke2spy import Poke2Spy
-from bot.cogs.tetris import Tetris
-from bot.cogs.wordle import Wordle
+from bot.cogs.pokemontcg import PokemonTCG
 from bot.config import config
 
-has_loaded_cogs = False
+logging.basicConfig(level=logging.DEBUG)
 
-bot = commands.Bot(
-    command_prefix="poketcg ",
-    intents=discord.Intents.all(),
-    owner_id=int(config.owner_id),
-)
+logger = logging.getLogger(__name__)
+
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 
 @bot.event
 async def on_ready():
-    global has_loaded_cogs
-    if has_loaded_cogs:
-        return
+    logger.info(f"Bot is ready as {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        logger.info(f"Synced {len(synced)} command(s)")
+    except Exception as e:
+        logger.error(f"Failed to sync commands: {e}")
 
-    await bot.add_cog(Poke2Spy())
-    await bot.add_cog(PkmnCards(bot))
-    await bot.add_cog(Wordle(bot))
-    await bot.add_cog(Connect4(bot))
-    await bot.add_cog(Tetris(bot))
 
-    has_loaded_cogs = True
+@bot.event
+async def setup_hook():
+    await bot.add_cog(PokemonTCG(bot))
 
 
 bot.run(config.discord_token)

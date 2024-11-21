@@ -24,7 +24,7 @@ services:
       POSTGRES_PASSWORD: testpwd
       POSTGRES_DB: player_db
     volumes:
-      - player_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     restart: always
     healthcheck:
       test: ["CMD", "sh", "-c", "pg_isready -U testuser -d player_db"]
@@ -46,4 +46,4 @@ services:
     restart: "no"
 
 volumes:
-  player_data:
+  postgres_data:
