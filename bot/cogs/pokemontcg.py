@@ -1,51 +1,30 @@
 import logging
 import random
-from dataclasses import dataclass
-from functools import lru_cache
 
 import discord
-import requests
-from aiocache import cached
-from aiocache.serializers import JsonSerializer
-from bs4 import BeautifulSoup
+import pokemontcgsdk
+from cachetools import TTLCache, cached
 from discord import app_commands
 from discord.ext import commands
 from reactionmenu import ViewButton, ViewMenu
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from bot.database import PlayerCards, Session
-from bot.utils import confirm_msg
+from bot.config import config
+from bot.database import Session, player_cards
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Set logging level to INFO or DEBUG as needed
-
-PACK_COUNT_BY_RARITY = {
-    "rarity%3Acommon": 4,
-    "rarity%3Auncommon": 3,
-    "-rarity%3Acommon,uncommon": 3,
-}
+logger.setLevel(logging.DEBUG)
 
 
-@dataclass
-class PkmnCard:
-    name: str
-    image_url: str
+@cached(cache=TTLCache(maxsize=100, ttl=600))
+def _query_cards(query: str) -> list[pokemontcgsdk.Card]:
+    return pokemontcgsdk.Card.where(q=query)
 
 
-@cached(ttl=3600, serializer=JsonSerializer())
-async def _scrape_set_names():
-    page = requests.get("https://pkmncards.com/sets/")
-    soup = BeautifulSoup(page.content, "html.parser")
-    set_names = []
-
-    for a in soup.find_all("a")[32:-27]:
-        if not a.has_attr("class"):
-            a["href"] = a["href"][:-1]
-            set_name = a["href"][a["href"].rfind("/") + 1 :]
-            set_names.append(set_name)
-
-    logger.debug(f"Scraped set names: {set_names}")
-    return set_names
+@cached(cache=TTLCache(maxsize=1, ttl=600))
+def _query_set_names() -> list[pokemontcgsdk.Set]:
+    return pokemontcgsdk.Set.all()
 
 
 async def _set_name_autocomplete(
@@ -53,126 +32,75 @@ async def _set_name_autocomplete(
     current: str,
 ) -> list[app_commands.Choice]:
     filtered = [
-        app_commands.Choice(name=name, value=name)
-        for name in await _scrape_set_names()
-        if current.lower() in name.lower()
+        app_commands.Choice(name=s.name, value=s.id)
+        for s in _query_set_names()
+        if current.lower() in s.name.lower()
     ]
     return filtered[:25]
 
 
-@cached(ttl=5)
-async def fetch_user_cards(discord_id: str) -> list[str]:
+def _upsert_player_cards(user_id: str, card_ids: list[str]):
     with Session.begin() as session:
-        query = session.query(PlayerCards).filter_by(discord_id=discord_id)
-        return [c.card_name for c in query.all()]
-
-
-async def _source_card_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> list[app_commands.Choice]:
-    card_names = await fetch_user_cards(str(interaction.user.id))
-    filtered = [
-        app_commands.Choice(name=name, value=name)
-        for name in card_names
-        if current.lower() in name.lower()
-    ]
-    return filtered[:25]
-
-
-async def _target_card_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> list[app_commands.Choice]:
-    card_names = await fetch_user_cards(str(interaction.namespace.user.id))
-    filtered = [
-        app_commands.Choice(name=name, value=name)
-        for name in card_names
-        if current.lower() in name.lower()
-    ]
-    return filtered[:25]
-
-
-def _upsert_player_card(session, user_id, card_name, card_image_url):
-    stmt = pg_insert(PlayerCards).values(
-        discord_id=user_id, card_name=card_name, card_image_url=card_image_url, count=1
-    )
-    stmt = stmt.on_conflict_do_update(
-        constraint="player_cards_pkey", set_={"count": PlayerCards.count + 1}
-    )
-
-    session.execute(stmt)
-    logger.debug(f"Upserted card '{card_name}' for user {user_id}")
-
-
-@lru_cache(maxsize=1000)
-def _scrape_card_info(query_str: str) -> list[PkmnCard]:
-    page = requests.get(f"https://pkmncards.com/?s={query_str}")
-    soup = BeautifulSoup(page.content, "html.parser")
-    cards = soup.find_all("div", {"class": "entry-content"})
-
-    if not cards:
-        logger.debug(f"No cards found for query: {query_str}")
-        return []
-
-    card_infos = []
-    if len(cards) == 1:
-        card_infos.append(
-            PkmnCard(
-                cards[0].find("h2", {"class": "card-title"}).text,
-                cards[0].find("img")["src"],
+        for card_id in card_ids:
+            stmt = (
+                pg_insert(player_cards)
+                .values(discord_id=user_id, card_id=card_id, count=1)
+                .on_conflict_do_update(
+                    index_elements=["discord_id", "card_id"],
+                    set_={"count": player_cards.c.count + 1},
+                )
             )
-        )
-    else:
-        for card in cards:
-            card_infos.append(PkmnCard(card.a["title"], card.a.img["src"]))
+            session.execute(stmt)
 
-    logger.debug(
-        f"Scraped card info for query '{query_str}': {[c.name for c in card_infos]}"
-    )
-    return card_infos
+
+def _get_player_cards(user_id: str) -> tuple[str, int]:
+    with Session.begin() as session:
+        stmt = select(player_cards.c.card_id, player_cards.c.count).where(
+            player_cards.c.discord_id == user_id
+        )
+        result = session.execute(stmt)
+        return result.fetchall()
 
 
 class PokemonTCG(commands.Cog):
     def __init__(self, bot):
+        pokemontcgsdk.RestClient.configure(config.pokemon_tcg_api_key)
         self.bot = bot
 
     @app_commands.command(name="open_pack", description="Open a Pokémon booster pack.")
-    @app_commands.autocomplete(set=_set_name_autocomplete)
-    async def open_pack(self, interaction: discord.Interaction, set: str):
-        menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
-        card_infos = []
+    @app_commands.autocomplete(set_id=_set_name_autocomplete)
+    async def open_pack(self, interaction: discord.Interaction, set_id: str):
+        await interaction.response.defer()
+        set_cards = _query_cards(f"set.id:{set_id}")
 
-        logger.debug(f"User {interaction.user} is opening a pack from set: {set}")
+        common_cards = [c for c in set_cards if c.rarity == "Common"]
+        uncommon_cards = [c for c in set_cards if c.rarity == "Uncommon"]
+        rare_cards = [
+            c for c in set_cards if c.rarity != "Common" and c.rarity != "Uncommon"
+        ]
 
-        for rarity, count in PACK_COUNT_BY_RARITY.items():
-            rarity_card_info = _scrape_card_info(f"set%3A{set}+{rarity}")
-            if len(rarity_card_info) < count:
-                continue
-
-            sampled_cards = random.sample(rarity_card_info, count)
-            card_infos.extend(sampled_cards)
-            logger.debug(
-                f"Selected cards for rarity {rarity}: {[c.name for c in sampled_cards]}"
-            )
-
-        with Session.begin() as session:
-            for card_info in card_infos:
-                _upsert_player_card(
-                    session,
-                    str(interaction.user.id),
-                    card_info.name,
-                    card_info.image_url,
-                )
-                menu.add_page(
-                    discord.Embed(title=card_info.name).set_image(
-                        url=card_info.image_url
-                    )
-                )
-
-        logger.debug(
-            f"User {interaction.user} received cards: {[c.name for c in card_infos]}"
+        pack_cards = (
+            random.choices(common_cards, k=4)
+            + random.choices(uncommon_cards, k=3)
+            + random.choices(rare_cards, k=3)
         )
+        _upsert_player_cards(str(interaction.user.id), [p.id for p in pack_cards])
+
+        menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
+        for pack_card in pack_cards:
+            menu.add_page(
+                discord.Embed(
+                    title=f"{pack_card.name}",
+                    description=f"**Set**: {pack_card.set.name}\n"
+                    f"**Rarity**: {pack_card.rarity}\n"
+                    f"**Type**: {', '.join(pack_card.types) if pack_card.types else 'N/A'}",
+                    color=discord.Color.blue(),
+                )
+                .set_image(url=pack_card.images.small)
+                .set_footer(
+                    text=f"Collector's Number: {pack_card.number} | Released: {pack_card.set.releaseDate}"
+                )
+            )
 
         menu.add_button(ViewButton.back())
         menu.add_button(ViewButton.next())
@@ -186,177 +114,37 @@ class PokemonTCG(commands.Cog):
         self,
         interaction: discord.Interaction,
         user: discord.User = None,
-        filter: str = None,
+        search_name: str = None,
     ):
-        target_user = user or interaction.user
-        logger.debug(f"User {interaction.user} requested cards for {target_user}")
+        user = user or interaction.user
+        user_card_ids = _get_player_cards(str(user.id))
 
-        with Session.begin() as session:
-            query = session.query(PlayerCards).filter_by(discord_id=str(target_user.id))
+        count_by_id = {c[0]: c[1] for c in user_card_ids}
 
-            if filter:
-                query = query.filter(PlayerCards.card_name.ilike(f"%{filter}%"))
+        search_query = "(" + " OR ".join([f"id:{id[0]}" for id in user_card_ids]) + ")"
+        if search_name:
+            search_query += f" name:*{search_name}*"
 
-            player_cards = query.all()
+        user_cards = _query_cards(search_query)
 
-            if not player_cards:
-                logger.debug(
-                    f"User {target_user} has no cards matching the filter '{filter}'"
+        menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
+        for user_card in user_cards:
+            menu.add_page(
+                discord.Embed(
+                    title=f"{user_card.name}",
+                    description=f"**Count**: {count_by_id[user_card.id]}\n"
+                    f"**Set**: {user_card.set.name}\n"
+                    f"**Rarity**: {user_card.rarity}\n"
+                    f"**Type**: {', '.join(user_card.types) if user_card.types else 'N/A'}",
+                    color=discord.Color.blue(),
                 )
-                return await interaction.response.send_message("Player has no cards")
-
-            menu = ViewMenu(interaction, menu_type=ViewMenu.TypeEmbed)
-            for card in player_cards:
-                menu.add_page(
-                    discord.Embed(title=card.card_name)
-                    .set_image(url=card.card_image_url)
-                    .add_field(name="count", value=card.count)
+                .set_image(url=user_card.images.small)
+                .set_footer(
+                    text=f"Collector's Number: {user_card.number} | Released: {user_card.set.releaseDate}"
                 )
-
-            menu.add_button(ViewButton.back())
-            menu.add_button(ViewButton.next())
-
-            logger.debug(
-                f"Displayed cards for user {target_user}: {[c.card_name for c in player_cards]}"
-            )
-            await menu.start()
-
-    @app_commands.command(
-        name="gift_card", description="Gifting a card to someone else."
-    )
-    @app_commands.autocomplete(card=_source_card_autocomplete)
-    async def gift_card(
-        self,
-        interaction: discord.Interaction,
-        user: discord.User,
-        card: str,
-    ):
-        logger.debug(f"User {interaction.user} is gifting card {card} to {user}")
-        with Session.begin() as session:
-            source_card = (
-                session.query(PlayerCards)
-                .filter_by(discord_id=str(interaction.user.id), card_name=card)
-                .with_for_update()
-                .one_or_none()
             )
 
-            if not source_card:
-                logger.warning(
-                    f"{interaction.user} tried to gift card {card}, but they do not own it."
-                )
-                return await interaction.response.send_message(
-                    f"{interaction.user.name.capitalize()} has no card {card}"
-                )
+        menu.add_button(ViewButton.back())
+        menu.add_button(ViewButton.next())
 
-            if source_card.count > 1:
-                source_card.count -= 1
-            else:
-                session.delete(source_card)
-
-            _upsert_player_card(
-                session,
-                str(user.id),
-                source_card.card_name,
-                card_image_url=source_card.card_image_url,
-            )
-
-            logger.debug(f"Gifted card {card} from {interaction.user} to {user}")
-            await interaction.response.send_message(
-                f"You have successfully gifted the card {card} to {user.name.capitalize()}"
-            )
-
-    @app_commands.command(
-        name="trade_card", description="Trading a card with someone else."
-    )
-    @app_commands.autocomplete(my_card=_source_card_autocomplete)
-    @app_commands.autocomplete(for_card=_target_card_autocomplete)
-    async def trade_card(
-        self,
-        interaction: discord.Interaction,
-        user: discord.User,
-        my_card: str,
-        for_card: str,
-    ):
-        logger.debug(
-            f"User {interaction.user} is proposing a trade with {user}: {my_card} for {for_card}"
-        )
-
-        with Session.begin() as session:
-            source_card = (
-                session.query(PlayerCards)
-                .filter_by(discord_id=str(interaction.user.id), card_name=my_card)
-                .one_or_none()
-            )
-            target_card = (
-                session.query(PlayerCards)
-                .filter_by(discord_id=str(user.id), card_name=for_card)
-                .one_or_none()
-            )
-
-        if not source_card or not target_card:
-            logger.warning(
-                "Trade failed: one or both users do not own the specified cards."
-            )
-            return await interaction.response.send_message(
-                "Both players must own the specified cards to complete the trade"
-            )
-
-        request_embed = (
-            discord.Embed(title=f"{user.name.capitalize()}, you have a trade proposal:")
-            .add_field(name=f"{interaction.user.name}", value=my_card, inline=True)
-            .add_field(name=f"{user.name}", value=for_card, inline=True)
-            .set_footer(text="React with 👍 to accept or 👎 to decline.")
-        )
-        await interaction.response.defer()
-        if not await confirm_msg.request_confirm_message(
-            interaction, self.bot, user, request_embed
-        ):
-            logger.debug("Trade declined by the other user.")
-            return
-
-        with Session.begin() as session:
-            source_card = (
-                session.query(PlayerCards)
-                .filter_by(discord_id=str(interaction.user.id), card_name=my_card)
-                .with_for_update()
-                .one_or_none()
-            )
-            target_card = (
-                session.query(PlayerCards)
-                .filter_by(discord_id=str(user.id), card_name=for_card)
-                .with_for_update()
-                .one_or_none()
-            )
-
-            if not source_card or not target_card:
-                logger.warning(
-                    "Trade failed during recheck: one or both users do not own the specified cards."
-                )
-                return await interaction.followup.send(
-                    "Both players must own the specified cards to complete the trade"
-                )
-
-            if source_card.count > 1:
-                source_card.count -= 1
-            else:
-                session.delete(source_card)
-
-            if target_card.count > 1:
-                target_card.count -= 1
-            else:
-                session.delete(target_card)
-
-            _upsert_player_card(
-                session,
-                str(interaction.user.id),
-                target_card.card_name,
-                target_card.card_image_url,
-            )
-            _upsert_player_card(
-                session, str(user.id), source_card.card_name, source_card.card_image_url
-            )
-
-            logger.debug(
-                f"Trade completed: {interaction.user} traded {my_card} for {for_card} with {user}"
-            )
-            await interaction.followup.send("Trade completed successfully.")
+        await menu.start()

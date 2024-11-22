@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine
+from sqlalchemy.orm import sessionmaker
 
 DATABASE_URL = "postgresql://testuser:testpwd@postgres:5432/player_db"
 
@@ -11,15 +11,12 @@ engine = create_engine(
 
 Session = sessionmaker(bind=engine)
 
+metadata = MetaData()
 
-class Base(DeclarativeBase):
-    pass
-
-
-class PlayerCards(Base):
-    __tablename__ = "player_cards"
-
-    discord_id = Column(String, primary_key=True, nullable=False)
-    card_name = Column(String, primary_key=True, nullable=False)
-    card_image_url = Column(String, nullable=False)
-    count = Column(Integer, default=0)
+player_cards = Table(
+    "player_cards",
+    metadata,
+    Column("discord_id", String, primary_key=True, nullable=False),
+    Column("card_id", String, primary_key=True, nullable=False),
+    Column("count", Integer, default=0),
+)

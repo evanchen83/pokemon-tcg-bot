@@ -17,7 +17,8 @@ python-dotenv = "1.0.1"
 SQLAlchemy = "2.0.35"
 psycopg2-binary = "2.9.9"
 pydantic-settings = "2.5.2"
-aiocache = "0.12.3"
+pokemontcgsdk = "3.4.0"
+cachetools = "5.5.0"
 
 [build-system]
 requires = ["poetry-core"]
