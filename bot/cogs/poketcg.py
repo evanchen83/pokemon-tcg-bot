@@ -78,9 +78,9 @@ class PokemonTCGBot(commands.Cog):
 
         # Randomly select cards for the pack
         pack_cards = (
-            random.choices(common_cards, k=4)
-            + random.choices(uncommon_cards, k=3)
-            + random.choices(rare_cards, k=3)
+            (random.choices(common_cards, k=4) if common_cards else [])
+            + (random.choices(uncommon_cards, k=3) if uncommon_cards else [])
+            + (random.choices(rare_cards, k=3) if rare_cards else [])
         )
         _upsert_player_cards(str(interaction.user.id), [p["id"] for p in pack_cards])
 

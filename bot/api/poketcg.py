@@ -36,7 +36,7 @@ class PokemonTCGAPI:
         cache=_cache,
         key=lambda self,
         card_ids,
-        search_name=None: f"get_cards_by_ids:{','.join(card_ids)}:{search_name}",
+        search_name: f"get_cards_by_ids:{','.join(card_ids)}:{search_name}",
     )
     def get_cards_by_ids(
         self, card_ids: list[str], search_name: str = None
