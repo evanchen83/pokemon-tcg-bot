@@ -3,7 +3,7 @@ import logging
 import discord
 from discord.ext import commands
 
-from bot.cogs.pokemontcg import PokemonTCG
+from bot.cogs.poketcg import PokemonTCGBot
 from bot.config import config
 
 logging.basicConfig(level=logging.DEBUG)
@@ -25,7 +25,7 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
-    await bot.add_cog(PokemonTCG(bot))
+    await bot.add_cog(PokemonTCGBot(bot))
 
 
 bot.run(config.discord_token)
