@@ -8,6 +8,7 @@ services:
     command: ["python", "-m", "bot.start_bot"]
     volumes:
       - ./bot:/app/bot
+      - ./data:/app/data
     env_file:
       - .env
     depends_on:
