@@ -37,7 +37,7 @@ def _overlay_transparent(background, overlay, x, y):
     return background
 
 
-def _overlay_box_index(box_index: str, box: cv2.typing.MatLike) -> cv2.typing.MatLike:
+def _overlay_box_name(box_index: str, box: cv2.typing.MatLike) -> cv2.typing.MatLike:
     position = (90, 20)
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.4
@@ -53,7 +53,7 @@ def _overlay_box_index(box_index: str, box: cv2.typing.MatLike) -> cv2.typing.Ma
 def _make_pokemon_box(pokemon_names: list[str], box_name: str) -> BytesIO:
     logger.debug("Creating box: %s with pokemon: %s", box_name, pokemon_names)
     box = cv2.imread("data/storage-bg.png", cv2.IMREAD_UNCHANGED)
-    box = _overlay_box_index(box_name, box)
+    box = _overlay_box_name(box_name, box)
 
     sprite_width = 36
     x, y = int(-sprite_width * 0.25), sprite_width // 2
