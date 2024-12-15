@@ -85,7 +85,7 @@ MAX_BOX_LIMIT = 10
 
 
 class PokeBox(commands.Cog):
-    @app_commands.command(name="box", description="Create a pokemon storage box")
+    @app_commands.command(name="box", description="Create a pokemon storage box.")
     async def box(
         self,
         interaction: discord.Interaction,
