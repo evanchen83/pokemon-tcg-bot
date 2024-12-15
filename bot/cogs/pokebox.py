@@ -91,13 +91,17 @@ class PokeBox(commands.Cog):
         interaction: discord.Interaction,
         random_size: int | None,
         pokemon_names: str | None,
+        search_name: str | None,
     ):
         await interaction.response.defer()
 
-        if pokemon_names:
+        if search_name:
+            pokemon_names = [
+                p for p in POKEMON_NAMES if search_name.strip().lower() in p
+            ]
+        elif pokemon_names:
             pokemon_names = [p.lower().strip() for p in pokemon_names.split(",")]
-
-        if random_size:
+        elif random_size:
             pokemon_names = random.choices(list(POKEMON_NAMES), k=random_size)
 
         if len(pokemon_names) > MAX_BOX_LIMIT * MAX_BOX_SIZE:
