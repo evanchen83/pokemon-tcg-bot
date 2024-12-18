@@ -6,11 +6,21 @@ from io import BytesIO
 import cv2
 import discord
 import pydash
+import rapidfuzz
 from discord import app_commands
 from discord.ext import commands
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def _load_pokemon_names() -> set[str]:
+    return {p.stem for p in pathlib.Path("data/pokemon-sprites/regular").rglob("*.png")}
+
+
+POKEMON_NAMES = _load_pokemon_names()
+MAX_BOX_SIZE = 30
+MAX_BOX_LIMIT = 10
 
 
 def _overlay_transparent(background, overlay, x, y):
@@ -60,7 +70,7 @@ def _make_pokemon_box(pokemon_names: list[str], box_name: str) -> BytesIO:
     i = 0
     for pokemon_name in pokemon_names:
         overlay = cv2.imread(
-            f"data/pokemon-sprites/regular/{pokemon_name.lower()}.png",
+            f"data/pokemon-sprites/regular/{pokemon_name}.png",
             cv2.IMREAD_UNCHANGED,
         )
 
@@ -75,13 +85,67 @@ def _make_pokemon_box(pokemon_names: list[str], box_name: str) -> BytesIO:
     return BytesIO(buffer)
 
 
-def _load_pokemon_names() -> set[str]:
-    return {p.stem for p in pathlib.Path("data/pokemon-sprites/regular").rglob("*.png")}
+def _fuzzy_match_pokemon(pokemon_names: list[str]) -> list[str]:
+    matched_pokemon = []
+
+    for pokemon_name in pokemon_names:
+        if pokemon_name in POKEMON_NAMES:
+            matched_pokemon.append(pokemon_name)
+            continue
+
+        top_match, score, _ = rapidfuzz.process.extractOne(pokemon_name, POKEMON_NAMES)
+        logger.debug(
+            "Matched invalid pokemon name: %s with %s. Similarity: %s",
+            pokemon_name,
+            top_match,
+            score,
+        )
+
+        matched_pokemon.append(top_match)
+
+    return matched_pokemon
 
 
-POKEMON_NAMES = _load_pokemon_names()
-MAX_BOX_SIZE = 30
-MAX_BOX_LIMIT = 10
+async def make_pokemon_boxes(
+    interaction: discord.Interaction,
+    random_size: int | None,
+    pokemon_names: str | None,
+    search_name: str | None,
+):
+    if not interaction.response.is_done():
+        await interaction.response.defer()
+
+    if search_name:
+        pokemon_names = [p for p in POKEMON_NAMES if search_name.strip().lower() in p]
+    elif pokemon_names:
+        pokemon_names = _fuzzy_match_pokemon(
+            [p.strip().lower() for p in pokemon_names.split(",")]
+        )
+    elif random_size:
+        pokemon_names = random.choices(list(POKEMON_NAMES), k=int(random_size))
+
+    if len(pokemon_names) > MAX_BOX_LIMIT * MAX_BOX_SIZE:
+        return await interaction.followup.send(
+            "Cannot generate more than 10 boxes of pokemon."
+        )
+
+    if invalid_pokemon_names := [p for p in pokemon_names if p not in POKEMON_NAMES]:
+        return await interaction.followup.send(
+            f"Invalid pokemon names: {invalid_pokemon_names}"
+        )
+
+    boxes = [
+        _make_pokemon_box(n, f"Box: {i}")
+        for i, n in enumerate(pydash.chunk(pokemon_names, MAX_BOX_SIZE))
+    ]
+
+    for i, box in enumerate(boxes):
+        file = discord.File(fp=box, filename=f"image_{i}.png")
+
+        embed = discord.Embed()
+        embed.set_image(url=f"attachment://image_{i}.png")
+
+        await interaction.followup.send(embed=embed, file=file)
 
 
 class PokeBox(commands.Cog):
@@ -93,38 +157,4 @@ class PokeBox(commands.Cog):
         pokemon_names: str | None,
         search_name: str | None,
     ):
-        await interaction.response.defer()
-
-        if search_name:
-            pokemon_names = [
-                p for p in POKEMON_NAMES if search_name.strip().lower() in p
-            ]
-        elif pokemon_names:
-            pokemon_names = [p.lower().strip() for p in pokemon_names.split(",")]
-        elif random_size:
-            pokemon_names = random.choices(list(POKEMON_NAMES), k=random_size)
-
-        if len(pokemon_names) > MAX_BOX_LIMIT * MAX_BOX_SIZE:
-            return await interaction.followup.send(
-                "Cannot generate more than 10 boxes of pokemon."
-            )
-
-        if invalid_pokemon_names := [
-            p for p in pokemon_names if p.lower() not in POKEMON_NAMES
-        ]:
-            return await interaction.followup.send(
-                f"Invalid pokemon names: {invalid_pokemon_names}"
-            )
-
-        boxes = [
-            _make_pokemon_box(n, f"Box: {i}")
-            for i, n in enumerate(pydash.chunk(pokemon_names, MAX_BOX_SIZE))
-        ]
-
-        for i, box in enumerate(boxes):
-            file = discord.File(fp=box, filename=f"image_{i}.png")
-
-            embed = discord.Embed()
-            embed.set_image(url=f"attachment://image_{i}.png")
-
-            await interaction.followup.send(embed=embed, file=file)
+        await make_pokemon_boxes(interaction, random_size, pokemon_names, search_name)
