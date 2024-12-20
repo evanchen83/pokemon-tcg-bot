@@ -108,9 +108,9 @@ def _fuzzy_match_pokemon(pokemon_names: list[str]) -> list[str]:
 
 async def make_pokemon_boxes(
     interaction: discord.Interaction,
-    random_size: int | None,
-    pokemon_names: str | None,
-    search_name: str | None,
+    random_size: int | None = None,
+    pokemon_names: str | None = None,
+    search_name: str | None = None,
 ):
     if not interaction.response.is_done():
         await interaction.response.defer()

@@ -1,5 +1,10 @@
+import logging
+
 import requests
 from cachetools import TTLCache, cached
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 _cache = TTLCache(maxsize=50, ttl=3600)
 
@@ -19,7 +24,7 @@ class PokemonTCGAPI:
 
     @cached(cache=_cache, key=lambda self: "get_sets")
     def get_sets(self) -> list[dict]:
-        params = {"select": "id,name"}
+        params = {"select": "id,name,series,releaseDate,total"}
         response = self._make_request("GET", "/sets", params=params)
         return response.get("data", [])
 
@@ -48,4 +53,14 @@ class PokemonTCGAPI:
         params = {"q": query, "select": "id,name,rarity,types,number,images,small,set"}
 
         response = self._make_request("GET", "/cards", params=params)
+        return response.get("data", [])
+
+    @cached(
+        cache=_cache,
+        key=lambda self, query, select: f"get_cards:{query}.{select}",
+    )
+    def get_cards(self, query: str, select: str) -> list[dict]:
+        response = self._make_request(
+            "GET", "/cards", params={"q": query, "select": select, "pageSize": 30}
+        )
         return response.get("data", [])
