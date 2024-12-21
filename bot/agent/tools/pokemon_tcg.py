@@ -94,11 +94,11 @@ search_cards_tool = StructuredTool(
     description=(
         "This tool retrieves Pokémon card information directly from the API. Use it to query card details efficiently. "
         "The query accepts the following fields: names, ids, set_names, artists, and series_names, all as lists of strings. "
+        "Inputs must be API request-friendly: avoid strange formats, special symbols, or characters that may not be valid in an API query. "
         "The 'select' field must be a list of strings, each one of the following: 'id', 'name', 'supertype', 'subtypes', 'hp', 'types', "
         "'evolvesFrom', 'abilities', 'attacks', 'weaknesses', 'retreatCost', 'convertedRetreatCost', 'set', 'number', 'artist', 'rarity', "
         "'flavorText', 'nationalPokedexNumbers', 'legalities', 'images', 'tcgplayer', 'cardmarket'. For example, provide ['name', 'images'] "
-        "to fetch specific fields. Including 'set' in 'select' retrieves set-specific details. This tool is optimized for bandwidth, fetching "
-        "data for up to 30 cards per query. Use it to quickly retrieve targeted information instead of downloading unnecessary data."
+        "to fetch specific fields. Including 'set' in 'select' retrieves set-specific details."
     ),
     args_schema=QuerySchema,
     func=get_cards,

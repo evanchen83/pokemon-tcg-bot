@@ -61,6 +61,8 @@ class PokemonTCGAPI:
     )
     def get_cards(self, query: str, select: str) -> list[dict]:
         response = self._make_request(
-            "GET", "/cards", params={"q": query, "select": select, "pageSize": 30}
+            "GET",
+            "/cards",
+            params={"q": query, "select": select, "pageSize": 30},
         )
         return response.get("data", [])

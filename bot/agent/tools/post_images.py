@@ -2,7 +2,7 @@ import asyncio
 
 import discord
 from langchain.tools import StructuredTool
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from reactionmenu import ViewButton, ViewMenu
 
 from bot.agent import global_interaction
@@ -28,7 +28,7 @@ def sync_post_images_caller(image_urls: list[str]):
 
 
 class ImageSchema(BaseModel):
-    image_urls: list[str]
+    image_urls: list[HttpUrl]
 
 
 post_images_tool = StructuredTool(

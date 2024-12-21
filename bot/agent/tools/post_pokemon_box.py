@@ -28,7 +28,10 @@ create_pokemon_box_tool = StructuredTool(
         "Use this tool when you say phrases like 'create a Pokémon box', 'post a Pokémon box', or 'post a box'. "
         "The tool only accepts Pokémon from Generations 1 to 8, with names in lowercase. Pokémon names should use "
         "hyphens for multi-word names, such as 'roaring-moon' or 'iron-leaves'. Pokémon names should be delimited by commas, such as 'pikachu,bulbasaur,charmander'. "
-        "If a typo is detected in the Pokémon names, the tool uses its best judgment to correct them. The schema takes a single string, which is parsed into a list internally."
+        "Duplicate Pokémon names are not allowed unless explicitly specified multiple times in the input. For example, 'pikachu,pikachu,charmander' will include two Pikachu, "
+        "but 'pikachu,charmander,charmander' will only include each Pokémon once by default. "
+        "If a typo is detected in the Pokémon names, the tool uses its best judgment to correct them. The schema takes a single string, which is parsed into a list internally, "
+        "with duplicates automatically removed unless explicitly repeated."
     ),
     args_schema=PokemonBoxSchema,
     func=sync_make_pokemon_boxes,
