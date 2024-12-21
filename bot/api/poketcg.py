@@ -63,6 +63,6 @@ class PokemonTCGAPI:
         response = self._make_request(
             "GET",
             "/cards",
-            params={"q": query, "select": select, "pageSize": 30},
+            params={"q": query, "select": select},
         )
         return response.get("data", [])

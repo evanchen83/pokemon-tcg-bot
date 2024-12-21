@@ -8,7 +8,7 @@ from bot.agent.tools import (
     post_pokemon_box,
 )
 
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 agent = initialize_agent(
     tools=[
